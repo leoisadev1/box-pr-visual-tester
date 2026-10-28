@@ -43,7 +43,7 @@
 </main>
 
 <div id="overlay" class="overlay" hidden></div>
-<div id="checkout" class="modal fixed inset-x-4 top-12" role="dialog" aria-modal="true" aria-labelledby="checkout-title" hidden>
+<div id="checkout" class="modal fixed inset-x-4 top-12 max-h-[85dvh] overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="checkout-title" hidden>
   <div class="modal-head">
     <div>
       <p class="eyebrow">Upgrade</p>
@@ -88,7 +88,7 @@
     </div>
     <p class="terms">You will be charged $24.00 today and on the 28th of each month until you cancel. Taxes are calculated at checkout.</p>
 
-    <div class="modal-foot">
+    <div class="modal-foot sticky bottom-0">
       <div class="due"><span class="muted">Due today</span><strong>$24.00</strong></div>
       <button id="confirm" class="btn btn-primary btn-block" type="submit">Confirm upgrade</button>
     </div>
