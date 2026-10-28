@@ -17,7 +17,8 @@
     "webhook": "tsx src/webhook.ts",
     "capture": "tsx src/capture-real-run.ts",
     "render:stills": "tsx src/render-stills.ts",
-    "render:video": "tsx src/render-video.ts"
+    "render:video": "tsx src/render-video.ts",
+    "render:preview": "tsx src/render-preview.ts"
   },
   "dependencies": {
     "@upstash/blob": "^0.0.12",
@@ -27,6 +28,8 @@
   },
   "devDependencies": {
     "@types/node": "^26.6.5",
+    "highlight.js": "^11.12.0",
+    "marked": "^18.1.2",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   },

@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How to Build an Agent That Visually Tests Every PR with Upstash Box Browser | Upstash Blog preview</title>
+<style>
+  :root {
+    --bg: #fafafa; --fg: #18181b; --muted: #71717a; --line: #e4e4e7; --soft: #f4f4f5;
+    --emerald: #059669; --emerald-600: #047857; --emerald-50: #ecfdf5; --code-bg: #18181b;
+    --font: Inter, "Geist", ui-sans-serif, system-ui, sans-serif; --mono: "Geist Mono", ui-monospace, "SF Mono", monospace;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 17px/1.75 var(--font); -webkit-font-smoothing: antialiased; }
+  .nav { position: sticky; top: 0; z-index: 5; background: rgb(250 250 250 / .9); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+  .nav .in { max-width: 1120px; margin: 0 auto; padding: 14px 24px; display: flex; align-items: center; gap: 22px; font-size: 14.5px; }
+  .brand { display: flex; align-items: center; gap: 9px; font-weight: 650; color: var(--fg); text-decoration: none; letter-spacing: -.01em; }
+  .brand i { width: 22px; height: 22px; border-radius: 6px; background: linear-gradient(140deg, #34d399, #059669); display: block; }
+  .nav a.l { color: var(--muted); text-decoration: none; }
+  .nav .badge { margin-left: auto; font-size: 12px; font-weight: 600; color: var(--emerald-600); background: var(--emerald-50); border: 1px solid #a7f3d0; padding: 3px 10px; border-radius: 99px; }
+  header.post { max-width: 768px; margin: 0 auto; padding: 64px 24px 28px; }
+  .crumb { font-size: 14px; color: var(--emerald-600); font-weight: 600; text-decoration: none; }
+  h1.title { font-size: clamp(32px, 4.6vw, 46px); line-height: 1.12; letter-spacing: -.028em; margin: 14px 0 22px; font-weight: 700; text-wrap: balance; }
+  .byline { display: flex; align-items: center; gap: 12px; font-size: 15px; color: var(--muted); }
+  .byline img { width: 40px; height: 40px; border-radius: 50%; }
+  .byline b { color: var(--fg); font-weight: 600; display: block; line-height: 1.3; }
+  .tags { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; }
+  .tags span { font-size: 12.5px; font-weight: 500; color: #3f3f46; background: var(--soft); border: 1px solid var(--line); border-radius: 99px; padding: 2px 10px; }
+  article { max-width: 768px; margin: 0 auto; padding: 8px 24px 96px; }
+  article h2 { font-size: 27px; line-height: 1.25; letter-spacing: -.02em; margin: 56px 0 14px; font-weight: 680; }
+  article p, article li { color: #27272a; }
+  article a { color: var(--emerald-600); text-underline-offset: 3px; }
+  article strong { color: var(--fg); }
+  article :not(pre) > code { font: .86em var(--mono); background: var(--soft); border: 1px solid var(--line); border-radius: 6px; padding: .1em .38em; color: #18181b; }
+  article ul, article ol { padding-left: 1.3em; }
+  article li { margin: 6px 0; }
+  figure { margin: 28px -96px; }
+  figure img, figure video { display: block; width: 100%; height: auto; border-radius: 14px; border: 1px solid var(--line); background: #fff; box-shadow: 0 1px 2px rgb(0 0 0 / .04), 0 12px 32px rgb(24 24 27 / .07); }
+  figure.video video { aspect-ratio: 16 / 9; background: #f3f5f8; }
+  figcaption { margin-top: 10px; font-size: 13.5px; line-height: 1.5; color: var(--muted); text-align: center; padding: 0 96px; }
+  pre.code { position: relative; margin: 22px 0; background: var(--code-bg); color: #e4e4e7; border-radius: 12px; padding: 18px 20px; overflow-x: auto; font: 13.5px/1.65 var(--mono); }
+  pre.code .lang { position: absolute; top: 8px; right: 12px; font: 600 11px var(--mono); color: #71717a; text-transform: uppercase; letter-spacing: .06em; }
+  pre.code code { font: inherit; background: none; border: 0; padding: 0; color: inherit; }
+  .hljs-keyword, .hljs-built_in, .hljs-selector-tag { color: #c4b5fd; }
+  .hljs-string, .hljs-attr .hljs-string, .hljs-template-variable { color: #6ee7b7; }
+  .hljs-number, .hljs-literal { color: #fdba74; }
+  .hljs-comment { color: #71717a; font-style: italic; }
+  .hljs-title, .hljs-title.function_ { color: #93c5fd; }
+  .hljs-attr, .hljs-property, .hljs-variable { color: #f9a8d4; }
+  .hljs-type, .hljs-params { color: #e4e4e7; }
+  .hljs-meta, .hljs-bullet { color: #fcd34d; }
+  .hljs-subst { color: #e4e4e7; }
+  table { width: 100%; border-collapse: collapse; margin: 22px 0; font-size: 14.5px; line-height: 1.5; display: block; overflow-x: auto; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-weight: 600; color: var(--fg); background: var(--soft); border-top: 1px solid var(--line); }
+  td code, th code { white-space: nowrap; }
+  hr { border: 0; border-top: 1px solid var(--line); margin: 48px 0; }
+  .note { max-width: 768px; margin: 0 auto; padding: 0 24px; font-size: 13px; color: var(--muted); }
+  @media (max-width: 1000px) { figure { margin: 24px 0; } figcaption { padding: 0; } }
+  @media (max-width: 640px) { body { font-size: 16px; } header.post { padding-top: 40px; } article h2 { font-size: 23px; } }
+</style>
+</head>
+<body>
+<nav class="nav"><div class="in"><a class="brand" href="#"><i></i>Upstash</a><a class="l" href="#">Blog</a><a class="l" href="https://github.com/leoisadev1/box-pr-visual-tester">Source</a><span class="badge">Draft preview</span></div></nav>
+<header class="post">
+  <a class="crumb" href="#">Blog</a>
+  <h1 class="title">How to Build an Agent That Visually Tests Every PR with Upstash Box Browser</h1>
+  <div class="byline"><img src="assets/leodev.png" alt=""><div><b>Leo</b>@leodev | October 28, 2026 | 16 min read</div></div>
+  <div class="tags"><span>box</span><span>ai</span><span>playwright</span><span>github</span><span>testing</span></div>
+</header>
+<article>
+<p>Unit tests don&#39;t see the screen. A pull request can pass every check and still ship a checkout dialog whose &quot;Confirm upgrade&quot; button sits below the fold on a phone, where nobody can tap it.</p>
+<p>In this post we&#39;ll build an agent that catches that class of bug on every PR. When a pull request opens, it restores an <a href="https://upstash.com/docs/box">Upstash Box</a> from a snapshot, serves the base branch and the PR side by side, lets Claude Code click through the flow in the box&#39;s built-in browser, measures the result with Playwright, and posts one review comment with before and after screenshots.</p>
+<p>The code is open source at <a href="https://github.com/leoisadev1/box-pr-visual-tester">leoisadev1/box-pr-visual-tester</a>, and <a href="https://github.com/leoisadev1/box-pr-visual-tester/pull/1">PR #1</a> in that repo shows the whole thing on a real pull request.</p>
+<figure class="video"><video src="./artifacts/box-pr-tester-demo.mp4" controls muted playsinline preload="metadata" poster="artifacts/verify-frames/frame-17.00.png"></video></figure><p>The 28-second video walks through box mode end to end. The box ID, restore time, CPU time, and cost in it are example values; the pixel measurements are the real ones from PR #1.</p>
+<h2>The bug a diff can&#39;t show</h2>
+<p>Here is PR #1. It changes two lines in <code>app/billing/index.html</code>:</p>
+<p><figure><a href="./artifacts/01-hero-pr-overview.png" target="_blank" rel="noopener"><img src="./artifacts/01-hero-pr-overview.png" alt="The Files changed tab of PR #1 on GitHub: two class changes in app/billing/index.html" loading="lazy"></a><figcaption>The Files changed tab of PR #1 on GitHub: two class changes in app/billing/index.html</figcaption></figure></p>
+<p>A reviewer reading this diff has to imagine the layout. Does <code>max-h-[85dvh] overflow-y-auto</code> fix the dialog on a 390x844 phone? Does <code>sticky bottom-0</code> keep the button on screen, or does it hide something else? The diff can&#39;t answer that. A browser can, in about a second, if something opens the page and looks.</p>
+<p>On <code>main</code>, the Upgrade to Pro dialog is positioned with <code>fixed inset-x-4 top-12</code> and has no height limit. On a phone its content runs past the bottom of the screen, and body scroll is locked while it&#39;s open, so the user can&#39;t reach the button. The PR caps the dialog at 85% of the dynamic viewport height, lets it scroll, and pins the footer with the button to its bottom edge.</p>
+<h2>What visual PR testing needs, and what Box gives you</h2>
+<table>
+<thead>
+<tr>
+<th>What the check needs</th>
+<th>Why</th>
+<th>What Upstash Box gives you</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Both versions of the app running at once</td>
+<td>You compare the PR against the base, not against a screenshot from last week</td>
+<td>One box, two clones, two ports: <code>box.git.clone</code> and <code>box.exec.command</code></td>
+</tr>
+<tr>
+<td>A real browser next to the app</td>
+<td>The previews stay on <code>localhost</code>, with no tunnel or public URL</td>
+<td><code>browser: true</code> and <code>box.browser.tab.create(&quot;http://localhost:3000/...&quot;)</code></td>
+</tr>
+<tr>
+<td>Navigation that survives refactors</td>
+<td>A renamed CSS class shouldn&#39;t break the test</td>
+<td><code>tab.act(&quot;Click the Upgrade Plan button&quot;)</code> and <code>tab.extract(...)</code></td>
+</tr>
+<tr>
+<td>Exact numbers</td>
+<td>&quot;Looks fine&quot; is a judgment; &quot;bottom edge at 910px in an 844px viewport&quot; is a fact</td>
+<td><code>box.browser.cdpUrl()</code> for Playwright over CDP</td>
+</tr>
+<tr>
+<td>A fast start on every push</td>
+<td>Installing a browser and <code>node_modules</code> per PR is slow</td>
+<td><code>Box.fromSnapshot</code> with Chromium and a warm npm cache</td>
+</tr>
+<tr>
+<td>A readable verdict</td>
+<td>Reviewers want one sentence, not a JSON dump</td>
+<td><code>box.agent.run({ responseSchema })</code> with Claude Code</td>
+</tr>
+<tr>
+<td>Screenshots GitHub can show</td>
+<td>PR comments need public image URLs</td>
+<td><code>@upstash/blob</code> <code>bucket.put</code></td>
+</tr>
+<tr>
+<td>Isolation</td>
+<td>PR code is untrusted and shouldn&#39;t run next to your secrets</td>
+<td>Each run gets its own box, deleted when the run ends</td>
+</tr>
+</tbody></table>
+<h2>How it works</h2>
+<p><figure><a href="./artifacts/02-architecture-flow.png" target="_blank" rel="noopener"><img src="./artifacts/02-architecture-flow.png" alt="Architecture: GitHub PR webhook or Action, Upstash Box from snapshot, Box Browser before and after inspection, Upstash Blob and a GitHub PR comment" loading="lazy"></a><figcaption>Architecture: GitHub PR webhook or Action, Upstash Box from snapshot, Box Browser before and after inspection, Upstash Blob and a GitHub PR comment</figcaption></figure></p>
+<ol>
+<li>GitHub tells us about the PR, through a webhook (<code>src/webhook.ts</code>) or a workflow (<code>.github/workflows/visual-qa.yml</code>).</li>
+<li>We restore a box from a snapshot, clone the base and the PR at the exact SHAs from the event, and serve them on <code>:3000</code> and <code>:3001</code>.</li>
+<li>Claude Code opens checkout in both with <code>tab.act</code>. Playwright, attached to the same Chromium over CDP, measures the button at 390x844 and 1440x900.</li>
+<li>Claude Code writes the verdict from those numbers, the screenshots go to Upstash Blob, and the bot posts or updates one comment on the PR.</li>
+</ol>
+<p>The repo is small. Each stage lives in <code>src/box-stages.ts</code>, so the one-process runner, the webhook, and the GitHub Actions steps all share the same code.</p>
+<pre class="code"><span class="lang"></span><code class="hljs language-plaintext">src/
+  create-snapshot.ts   one-time: Node box + Chromium + warm npm cache
+  box-stages.ts        restore, serve both branches, inspect, verdict, upload
+  probe.ts             Playwright: fold, clipping, hit target, validation
+  report.ts            Zod verdict schema, fallback verdict, PR comment Markdown
+  github.ts            SHA-pinned PR refs, comment upsert
+  pr-visual-tester.ts  one-process runner
+  ci.ts                the same stages as separate CI steps
+  webhook.ts           HMAC-verified webhook, one run per PR at a time
+app/billing/           the demo app with the bug</code></pre>
+<h2>What you need</h2>
+<ul>
+<li>An Upstash Box API key in <code>UPSTASH_BOX_API_KEY</code></li>
+<li>A GitHub token in <code>GITHUB_TOKEN</code> that can read the repo and comment on pull requests</li>
+<li>Optionally, an Upstash Blob token in <code>UPSTASH_BLOB_TOKEN</code> for a <strong>public</strong> bucket, so the screenshots show inline in the comment</li>
+<li>Optionally, your own Anthropic key in <code>ANTHROPIC_API_KEY</code>. Without it, the box uses the Upstash-managed key.</li>
+</ul>
+<pre class="code"><span class="lang">bash</span><code class="hljs language-bash">git <span class="hljs-built_in">clone</span> https://github.com/leoisadev1/box-pr-visual-tester
+<span class="hljs-built_in">cd</span> box-pr-visual-tester
+npm install</code></pre>
+<h2>Step 1: make a base snapshot once</h2>
+<p>Every PR run starts from a snapshot instead of a cold box. The seed box gets Chromium (<code>browser: true</code>), a shallow clone of the repo, and a warm npm cache, so later installs in a fresh checkout mostly hit the cache.</p>
+<pre class="code"><span class="lang">ts</span><code class="hljs language-ts"><span class="hljs-comment">// src/box-stages.ts</span>
+<span class="hljs-keyword">export</span> <span class="hljs-keyword">async</span> <span class="hljs-keyword">function</span> <span class="hljs-title function_">createBaseSnapshot</span>(<span class="hljs-params">{ env, repoUrl, log }: { env: Env; repoUrl: <span class="hljs-built_in">string</span>; log: Log }</span>): <span class="hljs-title class_">Promise</span>&lt;<span class="hljs-built_in">string</span>&gt; {
+  <span class="hljs-keyword">const</span> seed = <span class="hljs-keyword">await</span> <span class="hljs-title class_">Box</span>.<span class="hljs-title function_">create</span>({
+    <span class="hljs-attr">runtime</span>: <span class="hljs-string">&quot;node&quot;</span>,
+    <span class="hljs-attr">size</span>: <span class="hljs-string">&quot;small&quot;</span>,
+    <span class="hljs-attr">browser</span>: <span class="hljs-literal">true</span>,
+    <span class="hljs-attr">agent</span>: <span class="hljs-title function_">agentConfig</span>(env), <span class="hljs-comment">// Claude Code with ClaudeCode.Sonnet_4_5</span>
+    <span class="hljs-attr">git</span>: { <span class="hljs-attr">token</span>: env.<span class="hljs-property">GITHUB_TOKEN</span> },
+  });
+  <span class="hljs-keyword">try</span> {
+    <span class="hljs-keyword">await</span> seed.<span class="hljs-property">git</span>.<span class="hljs-title function_">clone</span>({ <span class="hljs-attr">repo</span>: repoUrl, <span class="hljs-attr">folder</span>: <span class="hljs-string">&quot;seed&quot;</span>, <span class="hljs-attr">depth</span>: <span class="hljs-number">1</span> });
+    <span class="hljs-keyword">await</span> seed.<span class="hljs-title function_">cd</span>(<span class="hljs-string">&quot;seed&quot;</span>);
+    <span class="hljs-keyword">await</span> <span class="hljs-title function_">mustSucceed</span>(seed.<span class="hljs-property">exec</span>.<span class="hljs-title function_">command</span>(<span class="hljs-string">&quot;npm ci --no-audit --no-fund&quot;</span>));
+    <span class="hljs-keyword">const</span> snapshot = <span class="hljs-keyword">await</span> seed.<span class="hljs-title function_">snapshot</span>({ <span class="hljs-attr">name</span>: <span class="hljs-string">&quot;pr-visual-base&quot;</span> });
+    <span class="hljs-keyword">return</span> snapshot.<span class="hljs-property">id</span>;
+  } <span class="hljs-keyword">finally</span> {
+    <span class="hljs-keyword">await</span> seed.<span class="hljs-title function_">delete</span>();
+  }
+}</code></pre>
+<p>Run it once per repo and keep the ID:</p>
+<pre class="code"><span class="lang">bash</span><code class="hljs language-bash">npx tsx src/create-snapshot.ts https://github.com/leoisadev1/box-pr-visual-tester</code></pre>
+<p><figure><a href="./artifacts/03-snapshot-creation-terminal.png" target="_blank" rel="noopener"><img src="./artifacts/03-snapshot-creation-terminal.png" alt="Terminal output of create-snapshot.ts: a small Node box with browser: true, the repo cloned, the npm cache warmed, and BOX_SNAPSHOT_ID printed" loading="lazy"></a><figcaption>Terminal output of create-snapshot.ts: a small Node box with browser: true, the repo cloned, the npm cache warmed, and BOX_SNAPSHOT_ID printed</figcaption></figure></p>
+<p>That screenshot shows the format the script prints. Your box ID, snapshot ID, size, and timings will differ. Re-run it when your lockfile changes a lot; a stale cache only makes <code>npm ci</code> slower, not wrong.</p>
+<h2>Step 2: serve both branches at pinned SHAs</h2>
+<p>For each PR, restore the snapshot, then clone the base into <code>main/</code> and the PR head into <code>pr/</code>. Branches move: if someone pushes while the box is starting, a clone of the branch name tests the newer commit and files the result under the older one. So after cloning, check out the exact SHA from the event and verify it.</p>
+<pre class="code"><span class="lang">ts</span><code class="hljs language-ts"><span class="hljs-comment">// src/box-stages.ts</span>
+<span class="hljs-keyword">for</span> (<span class="hljs-keyword">const</span> branch <span class="hljs-keyword">of</span> <span class="hljs-variable constant_">BRANCHES</span>) { <span class="hljs-comment">// main -&gt; :3000, pr -&gt; :3001</span>
+  <span class="hljs-keyword">const</span> isHead = branch.<span class="hljs-property">key</span> === <span class="hljs-string">&quot;after&quot;</span>;
+  <span class="hljs-keyword">const</span> sha = isHead ? pr.<span class="hljs-property">headSha</span> : pr.<span class="hljs-property">baseSha</span>;
+  <span class="hljs-keyword">await</span> box.<span class="hljs-property">git</span>.<span class="hljs-title function_">clone</span>({
+    <span class="hljs-attr">repo</span>: isHead ? pr.<span class="hljs-property">headCloneUrl</span> : pr.<span class="hljs-property">baseCloneUrl</span>, <span class="hljs-comment">// forks have their own clone URL</span>
+    <span class="hljs-attr">branch</span>: isHead ? pr.<span class="hljs-property">headRef</span> : pr.<span class="hljs-property">baseRef</span>,
+    <span class="hljs-attr">folder</span>: branch.<span class="hljs-property">folder</span>,
+    <span class="hljs-attr">depth</span>: <span class="hljs-number">1</span>,
+  });
+  <span class="hljs-keyword">await</span> box.<span class="hljs-title function_">cd</span>(branch.<span class="hljs-property">folder</span>);
+  <span class="hljs-keyword">await</span> <span class="hljs-title function_">mustSucceed</span>(
+    box.<span class="hljs-property">exec</span>.<span class="hljs-title function_">command</span>(<span class="hljs-string">`git fetch --depth 1 origin <span class="hljs-subst">${sha}</span> &amp;&amp; git checkout --detach <span class="hljs-subst">${sha}</span> &amp;&amp; test &quot;$(git rev-parse HEAD)&quot; = <span class="hljs-subst">${sha}</span>`</span>),
+  );
+  <span class="hljs-keyword">await</span> <span class="hljs-title function_">mustSucceed</span>(box.<span class="hljs-property">exec</span>.<span class="hljs-title function_">command</span>(<span class="hljs-string">&quot;npm ci --prefer-offline --no-audit --no-fund&quot;</span>));
+  <span class="hljs-keyword">await</span> <span class="hljs-title function_">mustSucceed</span>(box.<span class="hljs-property">exec</span>.<span class="hljs-title function_">command</span>(<span class="hljs-string">`PORT=<span class="hljs-subst">${branch.port}</span> nohup <span class="hljs-subst">${env.PREVIEW_START}</span> &gt; /tmp/<span class="hljs-subst">${branch.folder}</span>.log 2&gt;&amp;1 &amp;`</span>));
+  <span class="hljs-keyword">await</span> box.<span class="hljs-title function_">cd</span>(<span class="hljs-string">&quot;..&quot;</span>);
+}</code></pre>
+<p><code>pr.baseSha</code> and <code>pr.headSha</code> are a branded <code>CommitSha</code> type, validated as 40 hex characters where the webhook payload comes in, so a branch name can&#39;t be passed where a SHA belongs.</p>
+<p>The browser runs inside the same box, so it reaches both previews on <code>localhost</code>. Here is the step runner doing the same thing against PR #1 on a dev machine:</p>
+<p><figure><a href="./artifacts/04-dual-server-boot-terminal.png" target="_blank" rel="noopener"><img src="./artifacts/04-dual-server-boot-terminal.png" alt="Terminal output of ci.ts against PR #1: pinned base and head SHAs, two worktrees served on localhost:3000 and :3001, and the four probe results" loading="lazy"></a><figcaption>Terminal output of ci.ts against PR #1: pinned base and head SHAs, two worktrees served on localhost:3000 and :3001, and the four probe results</figcaption></figure></p>
+<p>That run is real, and it ran in local mode because the demo repo has no Box key configured. In box mode, <code>ci.ts restore</code> runs first and <code>serve</code> starts the previews inside the box instead of in local worktrees. The probe lines are the same either way.</p>
+<h2>Step 3: let the agent click, and let Playwright measure</h2>
+<p>This is the core idea. Two tools share one Chromium:</p>
+<ul>
+<li><strong>Box Browser tabs</strong> do the navigation. <code>tab.act(&quot;Click the Upgrade Plan button&quot;)</code> resolves a plain-English instruction to an element and clicks it.</li>
+<li><strong>Playwright over CDP</strong> does the measuring. <code>box.browser.cdpUrl()</code> returns an authenticated WebSocket URL, and <code>chromium.connectOverCDP</code> attaches to the same tabs.</li>
+</ul>
+<pre class="code"><span class="lang">ts</span><code class="hljs language-ts"><span class="hljs-comment">// src/box-stages.ts</span>
+<span class="hljs-keyword">const</span> browser = <span class="hljs-keyword">await</span> chromium.<span class="hljs-title function_">connectOverCDP</span>(<span class="hljs-keyword">await</span> box.<span class="hljs-property">browser</span>.<span class="hljs-title function_">cdpUrl</span>());
+<span class="hljs-keyword">const</span> tab = <span class="hljs-keyword">await</span> box.<span class="hljs-property">browser</span>.<span class="hljs-property">tab</span>.<span class="hljs-title function_">create</span>(url, { <span class="hljs-attr">waitUntil</span>: <span class="hljs-string">&quot;networkidle&quot;</span> });
+<span class="hljs-keyword">const</span> page = <span class="hljs-title function_">findPage</span>(browser, url); <span class="hljs-comment">// the Playwright handle for the same tab</span>
+
+<span class="hljs-comment">// Natural-language click first; a plain role click if the browser model is down or misses.</span>
+<span class="hljs-keyword">const</span> <span class="hljs-title function_">openCheckout</span> = <span class="hljs-keyword">async</span> (<span class="hljs-params"></span>) =&gt; {
+  <span class="hljs-keyword">try</span> {
+    <span class="hljs-keyword">const</span> result = <span class="hljs-keyword">await</span> tab.<span class="hljs-title function_">act</span>(<span class="hljs-string">&quot;Click the Upgrade Plan button&quot;</span>);
+    <span class="hljs-keyword">if</span> (result.<span class="hljs-property">success</span>) <span class="hljs-keyword">return</span>;
+  } <span class="hljs-keyword">catch</span> {}
+  <span class="hljs-keyword">await</span> page.<span class="hljs-title function_">getByRole</span>(<span class="hljs-string">&quot;button&quot;</span>, { <span class="hljs-attr">name</span>: <span class="hljs-string">&quot;Upgrade Plan&quot;</span> }).<span class="hljs-title function_">click</span>();
+};
+
+<span class="hljs-keyword">const</span> cdp = <span class="hljs-keyword">await</span> <span class="hljs-title function_">emulate</span>(page, { <span class="hljs-attr">name</span>: <span class="hljs-string">&quot;mobile&quot;</span>, <span class="hljs-attr">width</span>: <span class="hljs-number">390</span>, <span class="hljs-attr">height</span>: <span class="hljs-number">844</span> }); <span class="hljs-comment">// DPR 2 through CDP</span>
+<span class="hljs-keyword">try</span> {
+  <span class="hljs-keyword">const</span> report = <span class="hljs-keyword">await</span> <span class="hljs-title function_">inspectCheckout</span>({ page, viewport, openCheckout });
+  <span class="hljs-keyword">await</span> <span class="hljs-title function_">annotate</span>(page, report);
+  <span class="hljs-keyword">const</span> png = <span class="hljs-keyword">await</span> tab.<span class="hljs-title function_">screenshot</span>();
+} <span class="hljs-keyword">finally</span> {
+  <span class="hljs-keyword">await</span> cdp.<span class="hljs-title function_">detach</span>(); <span class="hljs-comment">// only now: detaching drops the emulation</span>
+}</code></pre>
+<p>Keep that CDP session open until the screenshot is taken. Chromium drops the device override when the session detaches, and the probe reloads the page. We checked this against a CDP-attached Chromium: with an early <code>detach()</code>, the &quot;mobile&quot; run measured a 1280x720 page at 1x.</p>
+<p><code>inspectCheckout</code> in <code>src/probe.ts</code> reloads the page, opens checkout, fills the card fields, leaves the cardholder name empty, and submits. It records:</p>
+<ul>
+<li><strong>Where the button is.</strong> <code>getBoundingClientRect()</code> on the submit button.</li>
+<li><strong>How much of it a user can see.</strong> The rect intersected with the viewport and with every ancestor that clips overflow, up to the fixed dialog.</li>
+<li><strong>Whether something covers it.</strong> <code>document.elementFromPoint</code> at the visible center.</li>
+<li><strong>What happened on submit.</strong> The validation message, or Playwright&#39;s own error when the button can&#39;t be clicked. After a successful click it measures the button again, because a validation message can push it out of view.</li>
+<li><strong>Console errors and page errors</strong> for the whole run.</li>
+</ul>
+<p>Here is the visibility check, cut down to the vertical axis:</p>
+<pre class="code"><span class="lang">ts</span><code class="hljs language-ts"><span class="hljs-keyword">const</span> visiblePercent = <span class="hljs-keyword">await</span> page.$eval(<span class="hljs-string">&quot;#checkout button[type=submit]&quot;</span>, <span class="hljs-function">(<span class="hljs-params">button</span>) =&gt;</span> {
+  <span class="hljs-keyword">const</span> r = button.<span class="hljs-title function_">getBoundingClientRect</span>();
+  <span class="hljs-keyword">let</span> top = <span class="hljs-title class_">Math</span>.<span class="hljs-title function_">max</span>(r.<span class="hljs-property">top</span>, <span class="hljs-number">0</span>);
+  <span class="hljs-keyword">let</span> bottom = <span class="hljs-title class_">Math</span>.<span class="hljs-title function_">min</span>(r.<span class="hljs-property">bottom</span>, <span class="hljs-variable language_">window</span>.<span class="hljs-property">innerHeight</span>);
+  <span class="hljs-comment">// Walk up to the fixed dialog; &lt;body&gt; overflow belongs to the viewport.</span>
+  <span class="hljs-keyword">for</span> (<span class="hljs-keyword">let</span> el = button.<span class="hljs-property">parentElement</span>; el &amp;&amp; el !== <span class="hljs-variable language_">document</span>.<span class="hljs-property">body</span>; el = el.<span class="hljs-property">parentElement</span>) {
+    <span class="hljs-keyword">const</span> style = <span class="hljs-title function_">getComputedStyle</span>(el);
+    <span class="hljs-keyword">if</span> (style.<span class="hljs-property">overflowY</span> !== <span class="hljs-string">&quot;visible&quot;</span>) {
+      <span class="hljs-keyword">const</span> clip = el.<span class="hljs-title function_">getBoundingClientRect</span>();
+      top = <span class="hljs-title class_">Math</span>.<span class="hljs-title function_">max</span>(top, clip.<span class="hljs-property">top</span>);
+      bottom = <span class="hljs-title class_">Math</span>.<span class="hljs-title function_">min</span>(bottom, clip.<span class="hljs-property">bottom</span>);
+    }
+    <span class="hljs-keyword">if</span> (style.<span class="hljs-property">position</span> === <span class="hljs-string">&quot;fixed&quot;</span>) <span class="hljs-keyword">break</span>;
+  }
+  <span class="hljs-keyword">return</span> <span class="hljs-title class_">Math</span>.<span class="hljs-title function_">round</span>((<span class="hljs-title class_">Math</span>.<span class="hljs-title function_">max</span>(<span class="hljs-number">0</span>, bottom - top) / r.<span class="hljs-property">height</span>) * <span class="hljs-number">1000</span>) / <span class="hljs-number">10</span>;
+});</code></pre>
+<p>Stop at the fixed dialog, not at <code>&lt;body&gt;</code>. The body has <code>overflow: hidden</code> while scroll is locked, so a naive walk counts it as a clipping box and reports a perfectly visible button as 0% visible. Our first version did exactly that.</p>
+<p>At 1440x900 both branches pass. The dialog fits on a laptop, which is exactly why this bug survives review:</p>
+<p><figure><a href="./artifacts/05-box-browser-desktop-comparison.png" target="_blank" rel="noopener"><img src="./artifacts/05-box-browser-desktop-comparison.png" alt="Desktop 1440x900 comparison: main and PR #1 both show the dialog with the Confirm upgrade button fully visible" loading="lazy"></a><figcaption>Desktop 1440x900 comparison: main and PR #1 both show the dialog with the Confirm upgrade button fully visible</figcaption></figure></p>
+<p>At 390x844 they don&#39;t. On <code>main</code>, &quot;Confirm upgrade&quot; starts at 861.5px and ends at 910px, 66px below the 844px fold, and Playwright refuses to click it. On PR #1 it ends at 745.4px with 98.6px to spare, and submitting with an empty name shows &quot;Enter the name on your card.&quot;:</p>
+<p><figure><a href="./artifacts/06-box-browser-mobile-regression.png" target="_blank" rel="noopener"><img src="./artifacts/06-box-browser-mobile-regression.png" alt="Mobile 390x844 comparison: on main the button sits below the dashed 844px fold line; on PR #1 it is outlined in green above the fold, with the validation message showing" loading="lazy"></a><figcaption>Mobile 390x844 comparison: on main the button sits below the dashed 844px fold line; on PR #1 it is outlined in green above the fold, with the validation message showing</figcaption></figure></p>
+<p>Finally, <code>tab.extract()</code> asks the browser model to read the final state back as typed data. It&#39;s a cross-check that the page says what the DOM probe thinks it says, so a failed extract returns <code>null</code> instead of failing the run:</p>
+<pre class="code"><span class="lang">ts</span><code class="hljs language-ts"><span class="hljs-keyword">const</span> <span class="hljs-title class_">AgentRead</span> = z.<span class="hljs-title function_">object</span>({
+  <span class="hljs-attr">primaryButtonLabel</span>: z.<span class="hljs-title function_">string</span>(),
+  <span class="hljs-attr">validationMessage</span>: z.<span class="hljs-title function_">string</span>().<span class="hljs-title function_">nullable</span>(),
+});
+<span class="hljs-keyword">const</span> agentRead = <span class="hljs-keyword">await</span> tab
+  .<span class="hljs-title function_">extract</span>(<span class="hljs-string">&quot;Read the checkout dialog. Return the primary button&#x27;s label and the validation message under the cardholder name, or null if there is none.&quot;</span>, <span class="hljs-title class_">AgentRead</span>)
+  .<span class="hljs-title function_">catch</span>(<span class="hljs-function">() =&gt;</span> <span class="hljs-literal">null</span>);</code></pre>
+<h2>Step 4: ask Claude Code for the verdict</h2>
+<p>The measurements go to the Claude Code agent configured on the box. <code>responseSchema</code> makes <code>run.result</code> a typed object instead of free text:</p>
+<pre class="code"><span class="lang">ts</span><code class="hljs language-ts"><span class="hljs-comment">// src/report.ts</span>
+<span class="hljs-keyword">export</span> <span class="hljs-keyword">const</span> <span class="hljs-title class_">VerdictSchema</span> = z.<span class="hljs-title function_">object</span>({
+  <span class="hljs-attr">status</span>: z.<span class="hljs-title function_">enum</span>([<span class="hljs-string">&quot;pass&quot;</span>, <span class="hljs-string">&quot;fail&quot;</span>]),
+  <span class="hljs-attr">headline</span>: z.<span class="hljs-title function_">string</span>().<span class="hljs-title function_">describe</span>(<span class="hljs-string">&quot;One sentence, under 90 characters.&quot;</span>),
+  <span class="hljs-attr">summary</span>: z.<span class="hljs-title function_">string</span>().<span class="hljs-title function_">describe</span>(<span class="hljs-string">&quot;Two or three sentences a reviewer can act on.&quot;</span>),
+  <span class="hljs-attr">regressions</span>: z.<span class="hljs-title function_">array</span>(z.<span class="hljs-title function_">string</span>()).<span class="hljs-title function_">describe</span>(<span class="hljs-string">&quot;Problems the PR introduces. Empty when there are none.&quot;</span>),
+});
+
+<span class="hljs-comment">// src/box-stages.ts</span>
+<span class="hljs-keyword">const</span> run = <span class="hljs-keyword">await</span> box.<span class="hljs-property">agent</span>.<span class="hljs-title function_">run</span>({
+  <span class="hljs-attr">prompt</span>: <span class="hljs-title function_">buildVerdictPrompt</span>({ <span class="hljs-attr">prNumber</span>: pr.<span class="hljs-property">number</span>, <span class="hljs-attr">title</span>: pr.<span class="hljs-property">title</span>, before, after, agentRead }),
+  <span class="hljs-attr">responseSchema</span>: <span class="hljs-title class_">VerdictSchema</span>,
+  <span class="hljs-attr">timeout</span>: <span class="hljs-number">120_000</span>,
+});
+<span class="hljs-keyword">const</span> verdict = run.<span class="hljs-property">result</span>; <span class="hljs-comment">// { status, headline, summary, regressions }</span></code></pre>
+<p>The prompt tells the agent to quote pixel numbers from the metrics and not invent its own. Every model step has a fallback, so a model outage never blocks the comment: if <code>tab.act</code> fails, the probe clicks by accessible name; if <code>tab.extract</code> fails, the cross-check is skipped; if the verdict call fails, <code>ruleBasedVerdict()</code> writes a verdict from the measurements alone and the comment says so.</p>
+<h2>Step 5: upload screenshots and comment on the PR</h2>
+<p>Screenshots go to Upstash Blob under a path keyed by the head SHA, so every push gets its own immutable images:</p>
+<pre class="code"><span class="lang">ts</span><code class="hljs language-ts"><span class="hljs-keyword">const</span> bucket = <span class="hljs-keyword">new</span> <span class="hljs-title class_">Bucket</span>({ token });
+<span class="hljs-keyword">const</span> blob = <span class="hljs-keyword">await</span> bucket.<span class="hljs-title function_">put</span>(<span class="hljs-string">`visual-qa/<span class="hljs-subst">${pr.repo}</span>/pr-<span class="hljs-subst">${pr.<span class="hljs-built_in">number</span>}</span>/<span class="hljs-subst">${pr.headSha}</span>/before-mobile.png`</span>, png, {
+  <span class="hljs-attr">contentType</span>: <span class="hljs-string">&quot;image/png&quot;</span>,
+  <span class="hljs-attr">cache</span>: <span class="hljs-string">&quot;immutable&quot;</span>,
+});
+<span class="hljs-keyword">if</span> (!blob.<span class="hljs-property">url</span>) <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">Error</span>(<span class="hljs-string">&quot;The Blob bucket is private. GitHub needs public image URLs; make the bucket public.&quot;</span>);</code></pre>
+<p>On a private bucket, <code>blob.url</code> is <code>undefined</code>, and signed read URLs expire after at most 10 minutes. That&#39;s too short for a PR comment, so the code fails loudly instead.</p>
+<p>The comment starts with a hidden marker, <code>&lt;!-- upstash-box-visual-review --&gt;</code>. On the next push, <code>upsertComment()</code> pages through the PR&#39;s comments, finds the one with that marker written by the bot&#39;s own login (<code>GITHUB_BOT_LOGIN</code>), and edits it. Checking the author matters: anyone can paste the marker into their own comment.</p>
+<h2>Step 6: run it on every PR</h2>
+<p>You have two options, and both call the same stages.</p>
+<p><strong>A webhook server.</strong> <code>src/webhook.ts</code> verifies GitHub&#39;s <code>x-hub-signature-256</code> HMAC in constant time and answers 202 right away, since GitHub gives you 10 seconds. It runs one check per PR at a time. If two pushes land close together, it remembers only the newest head SHA and tells the older run not to publish, so stale results never overwrite newer ones:</p>
+<pre class="code"><span class="lang">ts</span><code class="hljs language-ts"><span class="hljs-comment">// src/webhook.ts</span>
+<span class="hljs-keyword">function</span> <span class="hljs-title function_">enqueue</span>(<span class="hljs-params"><span class="hljs-attr">pr</span>: <span class="hljs-title class_">PullRequestRef</span></span>): <span class="hljs-string">&quot;started&quot;</span> | <span class="hljs-string">&quot;queued&quot;</span> {
+  <span class="hljs-keyword">const</span> key = <span class="hljs-title function_">prKey</span>(pr); <span class="hljs-comment">// &quot;owner/repo#number&quot;</span>
+  latest.<span class="hljs-title function_">set</span>(key, pr);
+  <span class="hljs-keyword">if</span> (running.<span class="hljs-title function_">has</span>(key)) <span class="hljs-keyword">return</span> <span class="hljs-string">&quot;queued&quot;</span>;
+  running.<span class="hljs-title function_">add</span>(key);
+  <span class="hljs-built_in">void</span> <span class="hljs-title function_">drain</span>(key);
+  <span class="hljs-keyword">return</span> <span class="hljs-string">&quot;started&quot;</span>;
+}
+
+<span class="hljs-keyword">async</span> <span class="hljs-keyword">function</span> <span class="hljs-title function_">drain</span>(<span class="hljs-params"><span class="hljs-attr">key</span>: <span class="hljs-built_in">string</span></span>): <span class="hljs-title class_">Promise</span>&lt;<span class="hljs-built_in">void</span>&gt; {
+  <span class="hljs-keyword">try</span> {
+    <span class="hljs-keyword">let</span> pr = latest.<span class="hljs-title function_">get</span>(key);
+    <span class="hljs-keyword">while</span> (pr) {
+      <span class="hljs-keyword">const</span> sha = pr.<span class="hljs-property">headSha</span>;
+      <span class="hljs-keyword">await</span> <span class="hljs-title function_">visualTestPullRequest</span>({ env, pr, <span class="hljs-attr">shouldPublish</span>: <span class="hljs-function">() =&gt;</span> latest.<span class="hljs-title function_">get</span>(key)?.<span class="hljs-property">headSha</span> === sha }).<span class="hljs-title function_">catch</span>(
+        <span class="hljs-function">(<span class="hljs-params"><span class="hljs-attr">err</span>: <span class="hljs-built_in">unknown</span></span>) =&gt;</span> <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">error</span>(err),
+      );
+      <span class="hljs-keyword">const</span> next = latest.<span class="hljs-title function_">get</span>(key);
+      <span class="hljs-keyword">if</span> (next?.<span class="hljs-property">headSha</span> === sha) {
+        latest.<span class="hljs-title function_">delete</span>(key);
+        pr = <span class="hljs-literal">undefined</span>;
+      } <span class="hljs-keyword">else</span> {
+        pr = next;
+      }
+    }
+  } <span class="hljs-keyword">finally</span> {
+    running.<span class="hljs-title function_">delete</span>(key);
+  }
+}</code></pre>
+<p>With signed test payloads it returns 401 for a bad signature, 204 for events it ignores, 400 for a malformed payload, and <code>started</code> then <code>queued</code> for two quick pushes.</p>
+<p><strong>GitHub Actions.</strong> If you&#39;d rather not host anything, <code>.github/workflows/visual-qa.yml</code> runs the same stages as workflow steps through <code>src/ci.ts</code>, which keeps the box alive between steps and finds it again with <code>Box.get</code>:</p>
+<pre class="code"><span class="lang">yaml</span><code class="hljs language-yaml"><span class="hljs-attr">on:</span>
+  <span class="hljs-attr">pull_request:</span>
+    <span class="hljs-attr">types:</span> [<span class="hljs-string">opened</span>, <span class="hljs-string">synchronize</span>, <span class="hljs-string">reopened</span>, <span class="hljs-string">labeled</span>]
+
+<span class="hljs-attr">concurrency:</span>
+  <span class="hljs-attr">group:</span> <span class="hljs-string">visual-qa-${{</span> <span class="hljs-string">github.event.pull_request.number</span> <span class="hljs-string">}}</span>
+  <span class="hljs-attr">cancel-in-progress:</span> <span class="hljs-literal">true</span>
+
+<span class="hljs-attr">jobs:</span>
+  <span class="hljs-attr">visual-qa:</span>
+    <span class="hljs-attr">runs-on:</span> <span class="hljs-string">ubuntu-24.04</span>
+    <span class="hljs-attr">env:</span>
+      <span class="hljs-attr">UPSTASH_BOX_API_KEY:</span> <span class="hljs-string">${{</span> <span class="hljs-string">secrets.UPSTASH_BOX_API_KEY</span> <span class="hljs-string">}}</span>
+      <span class="hljs-attr">BOX_SNAPSHOT_ID:</span> <span class="hljs-string">${{</span> <span class="hljs-string">secrets.BOX_SNAPSHOT_ID</span> <span class="hljs-string">}}</span>
+      <span class="hljs-attr">UPSTASH_BLOB_TOKEN:</span> <span class="hljs-string">${{</span> <span class="hljs-string">secrets.UPSTASH_BLOB_TOKEN</span> <span class="hljs-string">}}</span>
+      <span class="hljs-attr">GITHUB_TOKEN:</span> <span class="hljs-string">${{</span> <span class="hljs-string">secrets.GITHUB_TOKEN</span> <span class="hljs-string">}}</span>
+    <span class="hljs-attr">steps:</span>
+      <span class="hljs-bullet">-</span> <span class="hljs-attr">uses:</span> <span class="hljs-string">actions/checkout@v7</span>
+        <span class="hljs-attr">with:</span>
+          <span class="hljs-attr">ref:</span> <span class="hljs-string">${{</span> <span class="hljs-string">github.event.pull_request.base.sha</span> <span class="hljs-string">}}</span> <span class="hljs-comment"># run the tester from the base, not the PR</span>
+      <span class="hljs-bullet">-</span> <span class="hljs-attr">uses:</span> <span class="hljs-string">actions/setup-node@v7</span>
+        <span class="hljs-attr">with:</span> { <span class="hljs-attr">node-version:</span> <span class="hljs-number">22</span>, <span class="hljs-attr">cache:</span> <span class="hljs-string">npm</span> }
+      <span class="hljs-bullet">-</span> <span class="hljs-attr">run:</span> <span class="hljs-string">npm</span> <span class="hljs-string">ci</span> <span class="hljs-string">--no-audit</span> <span class="hljs-string">--no-fund</span>
+      <span class="hljs-bullet">-</span> <span class="hljs-attr">name:</span> <span class="hljs-string">Pick</span> <span class="hljs-string">mode</span> <span class="hljs-string">and</span> <span class="hljs-string">resolve</span> <span class="hljs-string">pinned</span> <span class="hljs-string">SHAs</span>
+        <span class="hljs-attr">id:</span> <span class="hljs-string">prepare</span>
+        <span class="hljs-attr">run:</span> <span class="hljs-string">npx</span> <span class="hljs-string">tsx</span> <span class="hljs-string">src/ci.ts</span> <span class="hljs-string">prepare</span>
+      <span class="hljs-bullet">-</span> <span class="hljs-attr">name:</span> <span class="hljs-string">Restore</span> <span class="hljs-string">Box</span> <span class="hljs-string">from</span> <span class="hljs-string">snapshot</span>
+        <span class="hljs-attr">if:</span> <span class="hljs-string">steps.prepare.outputs.mode</span> <span class="hljs-string">==</span> <span class="hljs-string">&#x27;box&#x27;</span>
+        <span class="hljs-attr">run:</span> <span class="hljs-string">npx</span> <span class="hljs-string">tsx</span> <span class="hljs-string">src/ci.ts</span> <span class="hljs-string">restore</span>
+      <span class="hljs-bullet">-</span> <span class="hljs-attr">name:</span> <span class="hljs-string">Install</span> <span class="hljs-string">Chromium</span> <span class="hljs-string">(local</span> <span class="hljs-string">mode)</span>
+        <span class="hljs-attr">if:</span> <span class="hljs-string">steps.prepare.outputs.mode</span> <span class="hljs-string">==</span> <span class="hljs-string">&#x27;local&#x27;</span>
+        <span class="hljs-attr">run:</span> <span class="hljs-string">npx</span> <span class="hljs-string">playwright-core</span> <span class="hljs-string">install</span> <span class="hljs-string">--with-deps</span> <span class="hljs-string">chromium</span>
+      <span class="hljs-bullet">-</span> <span class="hljs-attr">name:</span> <span class="hljs-string">Start</span> <span class="hljs-string">base</span> <span class="hljs-string">(:3000)</span> <span class="hljs-string">&amp;</span> <span class="hljs-string">PR</span> <span class="hljs-string">(:3001)</span> <span class="hljs-string">previews</span>
+        <span class="hljs-attr">run:</span> <span class="hljs-string">npx</span> <span class="hljs-string">tsx</span> <span class="hljs-string">src/ci.ts</span> <span class="hljs-string">serve</span>
+      <span class="hljs-bullet">-</span> <span class="hljs-attr">name:</span> <span class="hljs-string">Inspect</span> <span class="hljs-string">mobile</span> <span class="hljs-string">(390x844)</span> <span class="hljs-string">&amp;</span> <span class="hljs-string">desktop</span> <span class="hljs-string">(1440x900)</span>
+        <span class="hljs-attr">run:</span> <span class="hljs-string">npx</span> <span class="hljs-string">tsx</span> <span class="hljs-string">src/ci.ts</span> <span class="hljs-string">inspect</span>
+      <span class="hljs-bullet">-</span> <span class="hljs-attr">uses:</span> <span class="hljs-string">actions/upload-artifact@v7</span>
+        <span class="hljs-attr">with:</span> { <span class="hljs-attr">name:</span> <span class="hljs-string">&quot;visual-qa-pr-$<span class="hljs-template-variable">{{ github.event.pull_request.number }}</span>&quot;</span>, <span class="hljs-attr">path:</span> <span class="hljs-string">.visual-qa/out/</span> }
+      <span class="hljs-bullet">-</span> <span class="hljs-attr">name:</span> <span class="hljs-string">Publish</span> <span class="hljs-string">the</span> <span class="hljs-string">visual</span> <span class="hljs-string">review</span> <span class="hljs-string">(PR</span> <span class="hljs-string">comment</span> <span class="hljs-string">in</span> <span class="hljs-string">box</span> <span class="hljs-string">mode,</span> <span class="hljs-string">job</span> <span class="hljs-string">summary</span> <span class="hljs-string">in</span> <span class="hljs-string">local</span> <span class="hljs-string">mode)</span>
+        <span class="hljs-attr">run:</span> <span class="hljs-string">npx</span> <span class="hljs-string">tsx</span> <span class="hljs-string">src/ci.ts</span> <span class="hljs-string">publish</span>
+      <span class="hljs-bullet">-</span> <span class="hljs-attr">name:</span> <span class="hljs-string">Clean</span> <span class="hljs-string">up</span> <span class="hljs-string">box</span> <span class="hljs-string">and</span> <span class="hljs-string">previews</span>
+        <span class="hljs-attr">if:</span> <span class="hljs-string">always()</span>
+        <span class="hljs-attr">run:</span> <span class="hljs-string">npx</span> <span class="hljs-string">tsx</span> <span class="hljs-string">src/ci.ts</span> <span class="hljs-string">cleanup</span></code></pre>
+<p>The workflow checks out the tester from the base SHA, so a PR can&#39;t change the code that judges it. <code>ci.ts prepare</code> picks the mode: <strong>box</strong> when <code>UPSTASH_BOX_API_KEY</code> and <code>BOX_SNAPSHOT_ID</code> are set, otherwise <strong>local</strong>, which runs the same probe in Chromium on the runner. GitHub doesn&#39;t pass secrets to workflows triggered from forks, so local mode keeps those PRs covered too.</p>
+<p>Adding the <code>visual-qa</code> label re-runs the check on demand. Here is the real run on PR #1:</p>
+<p><figure><a href="./artifacts/07-github-actions-workflow-run.png" target="_blank" rel="noopener"><img src="./artifacts/07-github-actions-workflow-run.png" alt="GitHub Actions job for PR #1: every step succeeded, with Restore Box from snapshot skipped because the demo repo has no Box secrets" loading="lazy"></a><figcaption>GitHub Actions job for PR #1: every step succeeded, with Restore Box from snapshot skipped because the demo repo has no Box secrets</figcaption></figure></p>
+<p>&quot;Restore Box from snapshot&quot; is skipped because the demo repo has no Box secrets yet, so the run used local mode. Add the two secrets and the same workflow restores a box instead.</p>
+<h2>What the review looks like on a real PR</h2>
+<p><figure><a href="./artifacts/08-github-pr-comment-live.png" target="_blank" rel="noopener"><img src="./artifacts/08-github-pr-comment-live.png" alt="The visual review comment on PR #1 on GitHub, with before and after mobile screenshots, the verdict, and the DOM metrics table" loading="lazy"></a><figcaption>The visual review comment on PR #1 on GitHub, with before and after mobile screenshots, the verdict, and the DOM metrics table</figcaption></figure></p>
+<p>The comment on PR #1 comes from the local-mode run in Step 2, so it says &quot;local Chromium&quot;, carries a rule-based verdict, and has no cost line. A box-mode run says &quot;Upstash Box <code>box_...</code>&quot;, uses Claude Code&#39;s verdict, and adds the cost line. The numbers it reports:</p>
+<table>
+<thead>
+<tr>
+<th>Mobile 390x844</th>
+<th><code>main</code></th>
+<th><code>PR #1</code></th>
+</tr>
+</thead>
+<tbody><tr>
+<td>&quot;Confirm upgrade&quot; bottom edge</td>
+<td>910px</td>
+<td>745.4px</td>
+</tr>
+<tr>
+<td>Below the fold</td>
+<td>66px</td>
+<td>0px</td>
+</tr>
+<tr>
+<td>Button visible</td>
+<td>0%</td>
+<td>100%</td>
+</tr>
+<tr>
+<td>Submit with empty name</td>
+<td>Button unreachable</td>
+<td>Shows &quot;Enter the name on your card.&quot;</td>
+</tr>
+<tr>
+<td>Console errors</td>
+<td>0</td>
+<td>0</td>
+</tr>
+<tr>
+<td>Desktop 1440x900</td>
+<td>PASS</td>
+<td>PASS</td>
+</tr>
+</tbody></table>
+<h2>What it costs</h2>
+<p>This flow spends most of its time waiting on <code>npm</code>, the network, and the browser, not computing. The cost line is built from what the SDK reports per run:</p>
+<ul>
+<li><code>Run.cost.totalUsd</code> is set on agent runs, so it covers the verdict call. Command runs report <code>0</code>.</li>
+<li><code>Run.cost.computeMs</code> is wall-clock time for each command. The code adds it up and prices it at <code>BOX_CPU_HOUR_USD</code> (default <code>0.10</code>; set it to your plan&#39;s rate).</li>
+<li><code>tab.act</code> and <code>tab.extract</code> are metered separately and don&#39;t show up in <code>Run.cost</code>. <code>tab.act</code> returns <code>inputTokens</code> and <code>outputTokens</code>, which the runner logs. Check the Upstash console for the full bill.</li>
+</ul>
+<p>The line looks like this. The numbers here are an example, not a measurement:</p>
+<pre class="code"><span class="lang"></span><code class="hljs language-plaintext">Total run cost: $0.0038 | 5.4s active CPU @ $0.10/CPU-hr</code></pre>
+<p>At $0.10 per CPU-hour, 5.4 seconds of compute is about $0.00015, so in that example nearly all of the total is the verdict agent&#39;s tokens.</p>
+<h2>Run it yourself</h2>
+<pre class="code"><span class="lang">bash</span><code class="hljs language-bash"><span class="hljs-comment"># One-time</span>
+<span class="hljs-built_in">export</span> UPSTASH_BOX_API_KEY=... GITHUB_TOKEN=...
+npx tsx src/create-snapshot.ts https://github.com/&lt;owner&gt;/&lt;repo&gt;
+<span class="hljs-built_in">export</span> BOX_SNAPSHOT_ID=snap_...
+
+<span class="hljs-comment"># One PR, results saved locally</span>
+npx tsx src/pr-visual-tester.ts run &lt;owner&gt;/&lt;repo&gt; &lt;pr-number&gt; --out ./visual-qa
+
+<span class="hljs-comment"># One PR, screenshots to Upstash Blob and a comment on the PR</span>
+<span class="hljs-built_in">export</span> UPSTASH_BLOB_TOKEN=...
+npx tsx src/pr-visual-tester.ts run &lt;owner&gt;/&lt;repo&gt; &lt;pr-number&gt;
+
+<span class="hljs-comment"># Every PR, from a webhook</span>
+GITHUB_WEBHOOK_SECRET=... npm run webhook</code></pre>
+<p>For GitHub Actions, copy <code>.github/workflows/visual-qa.yml</code> and add <code>UPSTASH_BOX_API_KEY</code>, <code>BOX_SNAPSHOT_ID</code>, and <code>UPSTASH_BLOB_TOKEN</code> as repository secrets.</p>
+<h2>FAQ</h2>
+<p><strong>Why not compare screenshots pixel by pixel?</strong>
+Pixel diffs tell you that something changed, not whether it&#39;s broken. A one-pixel font change fails them; a button that moved 66px off screen on one viewport may not, if your baseline was taken on desktop. Measuring the thing you care about, like &quot;is the primary button fully visible and clickable&quot;, gives a pass or fail a reviewer can trust.</p>
+<p><strong>Why use the model at all, if Playwright does the measuring?</strong>
+For the parts that need judgment. <code>tab.act</code> finds &quot;the Upgrade Plan button&quot; without a selector, so the check survives refactors. The verdict turns four reports into a sentence a reviewer can act on. Both have deterministic fallbacks, so the model makes the check friendlier without making it flaky.</p>
+<p><strong>Do I need Box Browser for this to work?</strong>
+No, and that&#39;s on purpose. Without a Box key, <code>ci.ts</code> runs the same probe in local Chromium, which is how PR #1 in the demo repo was checked. With a key, everything moves into an isolated box: PR code never runs on your CI runner, the browser sits next to the app, and the snapshot makes startup fast.</p>
+<p><strong>Why pin SHAs instead of checking out the branch?</strong>
+Because the branch can move between the webhook firing and the box cloning it. Without pinning, the comment for commit A can describe commit B.</p>
+<p><strong>How do I check more than one page?</strong>
+Turn <code>inspectCheckout</code> into a list of probes, one per critical path such as sign-up, checkout, and settings, and run each against both branches. <code>box.browser.recordings.start()</code> can also capture the whole session as video when a reviewer wants to see how the agent got somewhere.</p>
+<p><strong>Can a visual regression block the merge?</strong>
+Yes. Make the workflow job required in your branch protection rules, and have <code>ci.ts publish</code> exit non-zero when <code>verdict.status</code> is <code>fail</code>.</p>
+<h2>Wrapping up</h2>
+<p>The split of work is what makes this reliable. The model handles the parts that need judgment: finding the button and explaining the result. Playwright handles the parts that need precision. Upstash Box gives both of them the same browser, right next to both versions of your app, and throws it all away when the run ends.</p>
+<p>The full source is at <a href="https://github.com/leoisadev1/box-pr-visual-tester">leoisadev1/box-pr-visual-tester</a>, and you can see the review on a real pull request in <a href="https://github.com/leoisadev1/box-pr-visual-tester/pull/1">PR #1</a>.</p>
+
+</article>
+<p class="note">Preview of <code>blog-post.mdx</code> (slug <code>visual-pr-testing-upstash-box-browser</code>). Images and video load from this folder.</p>
+</body>
+</html>

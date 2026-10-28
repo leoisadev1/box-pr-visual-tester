@@ -137,7 +137,10 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
       const dir = join(WORK, branch.folder);
       await rm(dir, { recursive: true, force: true });
       git(["worktree", "prune"]);
-      git(["fetch", "--quiet", "--depth", "1", "origin", sha]);
+      // --depth only in a clone that is already shallow (like actions/checkout); in a full clone it
+      // would turn the whole repository shallow.
+      const shallow = git(["rev-parse", "--is-shallow-repository"]) === "true";
+      git(["fetch", "--quiet", ...(shallow ? ["--depth", "1"] : []), "origin", sha]);
       git(["worktree", "add", "--quiet", "--detach", dir, sha]);
       if (git(["rev-parse", "HEAD"], dir) !== sha) throw new Error(`${dir} is not at ${sha}`);
       execFileSync("npm", ["ci", "--prefer-offline", "--no-audit", "--no-fund", "--loglevel=error"], { cwd: dir, stdio: "ignore" });

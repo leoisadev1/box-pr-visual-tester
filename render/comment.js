@@ -18,11 +18,11 @@ function submitCell(r) {
 export function prHeadHTML({ avatar }) {
   return `
   <div class="pr-head">
-    <h1 class="title">Fix mobile overflow on billing checkout modal <span class="num">#42</span></h1>
+    <h1 class="title">Fix mobile overflow on billing checkout modal <span class="num">#1</span></h1>
     <div class="meta">
       <span class="pill open">${ICONS.pr.replace("<svg", '<svg width="14" height="14"')} Open</span>
       <img class="avatar" src="${avatar}" width="22" height="22" alt="">
-      <span><b>leodev</b> wants to merge 1 commit into <span class="branch">main</span> from <span class="branch">leodev/fix-billing-modal</span></span>
+      <span><b>leodev</b> wants to merge 1 commit into <span class="branch">main</span> from <span class="branch">fix/billing-modal-mobile</span></span>
     </div>
   </div>`;
 }
@@ -40,11 +40,11 @@ export function commentHTML({ m, shots, shotWidth = 260 }) {
       <div class="comment-head"><b>upstash-box-qa</b><span class="pill bot">bot</span><span>commented just now</span></div>
       <div class="comment-body">
         <h3>Visual Review: ${m.verdict.status.toUpperCase()}</h3>
-        <p><b>${status(bm)} on <code>main</code>, ${status(am)} on <code>PR #42</code>.</b> Checked in Upstash Box <code>${esc(m.box.boxId)}</code> at 390x844 and 1440x900.</p>
+        <p><b>${status(bm)} on <code>main</code>, ${status(am)} on <code>PR #1</code>.</b> Checked in Upstash Box <code>${esc(m.box.boxId)}</code> at 390x844 and 1440x900.</p>
         <div class="review">
           <div class="shots">
             <figure class="shot" data-shot="before"><figcaption><span>Before: <code>main</code></span>${pill(bm)}</figcaption><img src="${shots.before}" alt="main, mobile"></figure>
-            <figure class="shot" data-shot="after"><figcaption><span>After: <code>PR #42</code></span>${pill(am)}</figcaption><img src="${shots.after}" alt="PR 42, mobile"></figure>
+            <figure class="shot" data-shot="after"><figcaption><span>After: <code>PR #1</code></span>${pill(am)}</figcaption><img src="${shots.after}" alt="PR 42, mobile"></figure>
           </div>
           <div class="side">
             <div class="verdict" data-part="verdict">
@@ -53,7 +53,7 @@ export function commentHTML({ m, shots, shotWidth = 260 }) {
               <div class="summary">${esc(m.verdict.summary)}</div>
             </div>
             <table class="metrics" data-part="metrics">
-              <tr><th>Mobile 390x844</th><th><code>main</code></th><th><code>PR #42</code></th></tr>
+              <tr><th>Mobile 390x844</th><th><code>main</code></th><th><code>PR #1</code></th></tr>
               <tr><td>"${esc(bm.cta.label)}" bottom edge</td><td>${px(bm.cta.rect.bottom)}</td><td>${px(am.cta.rect.bottom)}</td></tr>
               <tr><td>Below the fold</td><td class="bad">${px(bm.cta.overflowBelowFoldPx)}</td><td class="good">${px(am.cta.overflowBelowFoldPx)}</td></tr>
               <tr><td>Button visible</td><td class="bad">${bm.cta.visiblePercent}%</td><td class="good">${am.cta.visiblePercent}%</td></tr>
