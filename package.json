@@ -1,0 +1,37 @@
+{
+  "name": "box-pr-visual-tester",
+  "version": "0.1.0",
+  "private": true,
+  "description": "An agent that visually tests every pull request in an Upstash Box browser and posts a before/after review comment.",
+  "author": "Leo (@leodev)",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "tsx src/serve-app.ts",
+    "typecheck": "tsc --noEmit",
+    "snapshot": "tsx src/create-snapshot.ts",
+    "visual-qa": "tsx src/pr-visual-tester.ts run",
+    "webhook": "tsx src/webhook.ts",
+    "capture": "tsx src/capture-real-run.ts",
+    "render:stills": "tsx src/render-stills.ts",
+    "render:video": "tsx src/render-video.ts"
+  },
+  "dependencies": {
+    "@upstash/blob": "^0.0.12",
+    "@upstash/box": "^0.7.10",
+    "playwright-core": "^1.64.1",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/leoisadev1/box-pr-visual-tester"
+  }
+}

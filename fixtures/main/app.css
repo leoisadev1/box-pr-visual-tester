@@ -1,0 +1,85 @@
+/* Acme Cloud billing page. Utility names follow Tailwind so the PR diff reads like a real one. */
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  font: 15px/1.5 Inter, "Geist", system-ui, sans-serif;
+  color: #0f172a;
+  background: #f8fafc;
+  -webkit-font-smoothing: antialiased;
+}
+body.locked { overflow: hidden; }
+[hidden] { display: none !important; }
+h1, h2, p { margin: 0; }
+
+.fixed { position: fixed; }
+.sticky { position: sticky; }
+.inset-x-4 { left: 16px; right: 16px; }
+.top-12 { top: 48px; }
+.bottom-0 { bottom: 0; }
+.max-h-\[85dvh\] { max-height: 85dvh; }
+.overflow-y-auto { overflow-y: auto; }
+
+.topbar { display: flex; align-items: center; gap: 24px; height: 56px; padding: 0 20px; background: #fff; border-bottom: 1px solid #e2e8f0; }
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 650; }
+.logo { width: 22px; height: 22px; border-radius: 6px; background: linear-gradient(135deg, #6366f1, #22d3ee); }
+.tabs { display: none; gap: 20px; color: #64748b; font-size: 14px; }
+.tabs .active { color: #0f172a; font-weight: 600; }
+.me { margin-left: auto; width: 30px; height: 30px; border-radius: 50%; background: #e0e7ff; color: #4338ca; font-size: 12px; font-weight: 700; display: grid; place-items: center; }
+
+.page { max-width: 880px; margin: 0 auto; padding: 28px 20px 48px; display: grid; gap: 16px; }
+.eyebrow { font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: #6366f1; }
+h1 { font-size: 28px; line-height: 1.2; letter-spacing: -.02em; }
+.lead, .muted { color: #64748b; }
+.muted { font-size: 13px; }
+.card { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 18px; }
+.plan { display: grid; gap: 16px; }
+.label { font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+.plan-name { font-size: 20px; font-weight: 650; display: flex; align-items: center; gap: 8px; }
+.pill { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: #f1f5f9; color: #475569; }
+.meter { height: 8px; border-radius: 99px; background: #f1f5f9; overflow: hidden; margin: 6px 0 8px; }
+.meter span { display: block; height: 100%; background: #6366f1; border-radius: inherit; }
+.invoices ul { list-style: none; margin: 0; padding: 0; }
+.invoices li { display: flex; justify-content: space-between; padding: 8px 0; border-top: 1px solid #f1f5f9; font-size: 14px; }
+
+.btn { font: inherit; font-weight: 600; border: 0; border-radius: 10px; padding: 11px 18px; cursor: pointer; }
+.btn-primary { background: #4f46e5; color: #fff; box-shadow: 0 1px 2px rgb(15 23 42 / .2); }
+.btn-block { width: 100%; padding: 13px 18px; }
+.icon-btn { font-size: 24px; line-height: 1; width: 36px; height: 36px; border-radius: 10px; border: 1px solid #e2e8f0; background: #fff; color: #475569; cursor: pointer; }
+
+.overlay { position: fixed; inset: 0; background: rgb(15 23 42 / .45); }
+.modal { background: #fff; border-radius: 18px; box-shadow: 0 24px 60px rgb(15 23 42 / .28); }
+.modal-head { display: flex; justify-content: space-between; align-items: flex-start; padding: 20px 20px 12px; }
+h2 { font-size: 21px; letter-spacing: -.01em; }
+.summary { margin: 0 20px; padding: 14px; border-radius: 12px; background: #f5f3ff; border: 1px solid #e0e7ff; }
+.summary-row { display: flex; justify-content: space-between; align-items: baseline; }
+.price { font-size: 22px; font-weight: 700; }
+.price small { font-size: 13px; color: #64748b; font-weight: 500; }
+.features { margin: 8px 0 0; padding-left: 18px; color: #475569; font-size: 13.5px; }
+.features li { margin: 2px 0; }
+.cycle { display: flex; gap: 8px; margin: 14px 20px 4px; }
+.opt { flex: 1; display: flex; align-items: center; gap: 6px; padding: 9px 12px; border: 1px solid #e2e8f0; border-radius: 10px; font-size: 14px; font-weight: 500; }
+.opt.on { border-color: #6366f1; background: #eef2ff; }
+.opt input { accent-color: #4f46e5; margin: 0; }
+.save { margin-left: auto; font-size: 12px; color: #059669; font-weight: 600; }
+
+form { padding: 17.5px 20px 0; display: grid; gap: 12px; }
+.field { display: grid; gap: 5px; }
+.field label { font-size: 13px; font-weight: 600; color: #334155; }
+.field input, .field select { font: inherit; font-size: 15px; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 10px; background: #fff; color: #0f172a; width: 100%; }
+.field input[aria-invalid="true"] { border-color: #dc2626; box-shadow: 0 0 0 3px rgb(220 38 38 / .15); }
+.error { color: #dc2626; font-size: 13px; font-weight: 500; }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.row.wide { grid-template-columns: 1fr; }
+.terms { font-size: 12.5px; color: #64748b; }
+.modal-foot { margin: 0 -20px; padding: 14px 20px 20px; background: #fff; border-top: 1px solid #f1f5f9; border-radius: 0 0 18px 18px; display: grid; gap: 10px; }
+.due { display: flex; justify-content: space-between; font-size: 14px; }
+
+@media (min-width: 640px) {
+  .topbar { padding: 0 32px; }
+  .tabs { display: flex; }
+  .page { padding-top: 40px; }
+  .plan { grid-template-columns: 1fr auto; align-items: center; }
+  .modal { left: 50%; right: auto; width: 560px; transform: translateX(-50%); top: 40px; }
+  .row.wide { grid-template-columns: 1fr 1fr; }
+  .features { columns: 2; }
+}

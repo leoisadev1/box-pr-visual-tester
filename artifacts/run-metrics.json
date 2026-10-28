@@ -1,0 +1,202 @@
+{
+  "generatedAt": "2026-10-28T18:51:37.757Z",
+  "host": "ms-a2",
+  "chromium": "156.0.8078.4",
+  "previews": {
+    "before": {
+      "label": "main",
+      "url": "http://127.0.0.1:3040/"
+    },
+    "after": {
+      "label": "PR #1",
+      "url": "http://127.0.0.1:3041/"
+    }
+  },
+  "measured": {
+    "before": {
+      "label": "main",
+      "reports": {
+        "mobile": {
+          "viewport": {
+            "name": "mobile",
+            "width": 390,
+            "height": 844
+          },
+          "cta": {
+            "label": "Confirm upgrade",
+            "rect": {
+              "top": 861.5,
+              "bottom": 910,
+              "left": 36,
+              "right": 354,
+              "width": 318,
+              "height": 48.5
+            },
+            "viewportHeight": 844,
+            "overflowBelowFoldPx": 66,
+            "visiblePercent": 0,
+            "coveredBy": null
+          },
+          "submit": {
+            "kind": "unreachable",
+            "reason": "locator.click: Timeout 2000ms exceeded."
+          },
+          "consoleErrors": [],
+          "status": "fail"
+        },
+        "desktop": {
+          "viewport": {
+            "name": "desktop",
+            "width": 1440,
+            "height": 900
+          },
+          "cta": {
+            "label": "Confirm upgrade",
+            "rect": {
+              "top": 753.25,
+              "bottom": 801.75,
+              "left": 460,
+              "right": 980,
+              "width": 520,
+              "height": 48.5
+            },
+            "viewportHeight": 900,
+            "overflowBelowFoldPx": 0,
+            "visiblePercent": 100,
+            "coveredBy": null
+          },
+          "submit": {
+            "kind": "clicked",
+            "validationMessage": "Enter the name on your card.",
+            "ctaAfter": {
+              "label": "Confirm upgrade",
+              "rect": {
+                "top": 777.75,
+                "bottom": 826.25,
+                "left": 460,
+                "right": 980,
+                "width": 520,
+                "height": 48.5
+              },
+              "viewportHeight": 900,
+              "overflowBelowFoldPx": 0,
+              "visiblePercent": 100,
+              "coveredBy": null
+            }
+          },
+          "consoleErrors": [],
+          "status": "pass"
+        }
+      }
+    },
+    "after": {
+      "label": "PR #1",
+      "reports": {
+        "mobile": {
+          "viewport": {
+            "name": "mobile",
+            "width": 390,
+            "height": 844
+          },
+          "cta": {
+            "label": "Confirm upgrade",
+            "rect": {
+              "top": 696.890625,
+              "bottom": 745.390625,
+              "left": 36,
+              "right": 354,
+              "width": 318,
+              "height": 48.5
+            },
+            "viewportHeight": 844,
+            "overflowBelowFoldPx": 0,
+            "visiblePercent": 100,
+            "coveredBy": null
+          },
+          "submit": {
+            "kind": "clicked",
+            "validationMessage": "Enter the name on your card.",
+            "ctaAfter": {
+              "label": "Confirm upgrade",
+              "rect": {
+                "top": 696.890625,
+                "bottom": 745.390625,
+                "left": 36,
+                "right": 354,
+                "width": 318,
+                "height": 48.5
+              },
+              "viewportHeight": 844,
+              "overflowBelowFoldPx": 0,
+              "visiblePercent": 100,
+              "coveredBy": null
+            }
+          },
+          "consoleErrors": [],
+          "status": "pass"
+        },
+        "desktop": {
+          "viewport": {
+            "name": "desktop",
+            "width": 1440,
+            "height": 900
+          },
+          "cta": {
+            "label": "Confirm upgrade",
+            "rect": {
+              "top": 736.5,
+              "bottom": 785,
+              "left": 460,
+              "right": 980,
+              "width": 520,
+              "height": 48.5
+            },
+            "viewportHeight": 900,
+            "overflowBelowFoldPx": 0,
+            "visiblePercent": 100,
+            "coveredBy": null
+          },
+          "submit": {
+            "kind": "clicked",
+            "validationMessage": "Enter the name on your card.",
+            "ctaAfter": {
+              "label": "Confirm upgrade",
+              "rect": {
+                "top": 736.5,
+                "bottom": 785,
+                "left": 460,
+                "right": 980,
+                "width": 520,
+                "height": 48.5
+              },
+              "viewportHeight": 900,
+              "overflowBelowFoldPx": 0,
+              "visiblePercent": 100,
+              "coveredBy": null
+            }
+          },
+          "consoleErrors": [],
+          "status": "pass"
+        }
+      }
+    }
+  },
+  "verdict": {
+    "status": "pass",
+    "headline": "Fixes the checkout button on 390x844",
+    "summary": "On main, \"Confirm upgrade\" ends 66px below the fold (0% visible) and cannot be clicked, with 0 console errors. On PR #1, \"Confirm upgrade\" is 100% visible and submitting with an empty name shows \"Enter the name on your card.\", with 0 console errors.",
+    "regressions": [],
+    "source": "ruleBasedVerdict (local Chromium run)"
+  },
+  "box": {
+    "boxId": "box_01J9X7K2M8P4Q",
+    "snapshotRestoreSeconds": 1.4,
+    "cost": {
+      "totalUsd": 0.0038,
+      "activeCpuSeconds": 5.4,
+      "cpuHourUsd": 0.1
+    },
+    "measured": false,
+    "note": "Example Box telemetry shown in the companion video. Not a measurement."
+  }
+}

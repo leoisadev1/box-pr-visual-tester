@@ -1,0 +1,77 @@
+name: Visual QA (Upstash Box Browser)
+
+# Runs the visual check on every pull request.
+# With the UPSTASH_BOX_API_KEY and BOX_SNAPSHOT_ID secrets set, it restores an Upstash Box, serves
+# both branches inside it, inspects them in Box Browser, uploads screenshots to Upstash Blob
+# (UPSTASH_BLOB_TOKEN), and posts the review on the PR.
+# Without them it runs the same probe in Chromium on the runner and writes the review to the job
+# summary, so forks and first-time setups still get a result.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: visual-qa-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  visual-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      UPSTASH_BOX_API_KEY: ${{ secrets.UPSTASH_BOX_API_KEY }}
+      BOX_SNAPSHOT_ID: ${{ secrets.BOX_SNAPSHOT_ID }}
+      UPSTASH_BLOB_TOKEN: ${{ secrets.UPSTASH_BLOB_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_BOT_LOGIN: github-actions[bot]
+    steps:
+      - name: Check out the tester
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Pick mode and resolve pinned SHAs
+        id: prepare
+        run: npx tsx src/ci.ts prepare
+
+      - name: Restore Box from snapshot
+        if: steps.prepare.outputs.mode == 'box'
+        run: npx tsx src/ci.ts restore
+
+      - name: Install Chromium (local mode)
+        if: steps.prepare.outputs.mode == 'local'
+        run: npx playwright-core install --with-deps chromium
+
+      - name: Start base (:3000) & PR (:3001) previews
+        run: npx tsx src/ci.ts serve
+
+      - name: Inspect mobile (390x844) & desktop (1440x900)
+        run: npx tsx src/ci.ts inspect
+
+      - name: Upload screenshots as a workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-qa-pr-${{ github.event.pull_request.number }}
+          path: .visual-qa/out/
+
+      - name: Publish the visual review (PR comment in box mode, job summary in local mode)
+        run: npx tsx src/ci.ts publish
+
+      - name: Clean up box and previews
+        if: always()
+        run: npx tsx src/ci.ts cleanup
