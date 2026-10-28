@@ -1,0 +1,18 @@
+$ npx tsx src/ci.ts prepare leoisadev1/box-pr-visual-tester 1
+18:53:34  leoisadev1/box-pr-visual-tester#1 "Fix mobile overflow on billing checkout modal"
+18:53:34  base main @ 846a88c | head fix/billing-modal-mobile @ 2a94f48
+18:53:34  mode: local (no UPSTASH_BOX_API_KEY; local Chromium, same probe)
+$ npx tsx src/ci.ts serve
+18:53:35  main 846a88c -> worktree main/, npm ci, npm start -> localhost:3000
+18:53:36  pr   2a94f48 -> worktree pr/, npm ci, npm start -> localhost:3001
+18:53:37  both previews answer on /billing/
+$ npx tsx src/ci.ts inspect
+18:53:42  main   mobile  390x844 FAIL bottom=910px below_fold=66px visible=0% submit=unreachable console_errors=0
+18:53:42  main   desktop 1440x900 PASS bottom=801.8px below_fold=0px visible=100% submit=clicked console_errors=0
+18:53:44  PR #1  mobile  390x844 PASS bottom=745.4px below_fold=0px visible=100% submit=clicked console_errors=0
+18:53:44  PR #1  desktop 1440x900 PASS bottom=785px below_fold=0px visible=100% submit=clicked console_errors=0
+18:53:44  rule-based verdict: PASS "Fixes the checkout button on 390x844"
+$ npx tsx src/ci.ts publish --image-base $IMAGE_BASE
+18:53:45  wrote .visual-qa/out/pr-comment.md
+$ npx tsx src/ci.ts cleanup
+18:53:45  stopped 2 preview servers and removed the worktrees

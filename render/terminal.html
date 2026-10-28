@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Terminal</title>
+<link rel="stylesheet" href="shared.css">
+<style>
+  body { background: var(--canvas); }
+  .page { width: 1400px; padding: 36px 40px 34px; }
+  .win { border-radius: 12px; overflow: hidden; background: #0d1117; box-shadow: 0 0 0 1px rgb(0 0 0 / .4), 0 18px 44px rgb(31 35 40 / .22); }
+  .bar { height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 14px; background: #161b22; border-bottom: 1px solid #262c36; }
+  .bar i { width: 12px; height: 12px; border-radius: 50%; display: block; }
+  .bar .t { flex: 1; text-align: center; color: #9aa4b2; font: 500 13px Inter, sans-serif; margin-right: 52px; }
+  pre { margin: 0; padding: 20px 24px 24px; font: 15px/1.62 var(--mono); color: #d6dde6; white-space: pre-wrap; }
+  .cmd { color: #f0f6fc; font-weight: 600; }
+  .cmd .p { color: #3fb950; }
+  .ts { color: #6e7781; }
+  .pass { color: #3fb950; font-weight: 600; }
+  .fail { color: #ff7b72; font-weight: 600; }
+  .key { color: #79c0ff; }
+  .out { color: #e3b341; font-weight: 600; }
+  .cap { margin-top: 14px; color: var(--muted); font-size: 13.5px; }
+</style>
+</head>
+<body>
+<div class="page"><div class="win"><div class="bar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i><div class="t" id="title"></div></div><pre id="out"></pre></div><p class="cap" id="cap"></p></div>
+<script type="module">
+  const run = new URLSearchParams(location.search).get("run") ?? "pr";
+  const esc = (s) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
+  const paint = (line) => {
+    if (line.startsWith("$ ")) return `<span class="cmd"><span class="p">leo@ms-a2</span> ${esc(line)}</span>`;
+    if (line.startsWith("BOX_SNAPSHOT_ID=")) return `<span class="out">${esc(line)}</span>`;
+    return esc(line)
+      .replace(/^(\d\d:\d\d:\d\d)/, '<span class="ts">$1</span>')
+      .replace(/\b(PASS)\b/g, '<span class="pass">$1</span>')
+      .replace(/\b(FAIL)\b/g, '<span class="fail">$1</span>')
+      .replace(/\b(bottom|below_fold|visible|submit|console_errors)=/g, '<span class="key">$1</span>=');
+  };
+  let text;
+  if (run === "snapshot") {
+    // Example output in the exact format src/create-snapshot.ts prints. IDs and timings are illustrative.
+    document.getElementById("title").textContent = "create-snapshot.ts (example output)";
+    document.getElementById("cap").textContent =
+      "Example output in the format src/create-snapshot.ts prints. Your box ID, snapshot ID, size, and timings will differ.";
+    text = [
+      "$ npx tsx src/create-snapshot.ts https://github.com/leoisadev1/box-pr-visual-tester",
+      "18:41:02  creating a base snapshot for https://github.com/leoisadev1/box-pr-visual-tester",
+      "18:41:05  created box_01J9X6Q1F7T3N (node, small, browser: true) in 3.2s",
+      "18:41:07  cloned https://github.com/leoisadev1/box-pr-visual-tester in 1.9s",
+      "18:41:21  npm ci warmed the npm cache in 14.1s",
+      "18:41:29  snapshot snap_01J9X6R8V2K4M ready (412 MB) in 8.3s",
+      "18:41:30  deleted seed box box_01J9X6Q1F7T3N",
+      "BOX_SNAPSHOT_ID=snap_01J9X6R8V2K4M",
+    ].join("\n");
+  } else {
+    document.getElementById("title").textContent = "ci.ts on ms-a2: PR #1, local mode";
+    document.getElementById("cap").textContent =
+      "Real output from running the workflow's steps against PR #1 on ms-a2 without a Box key. In box mode, a restore step runs first and the previews start inside the box.";
+    text = (await (await fetch("../artifacts/pr-1/run-output.txt")).text()).trimEnd();
+  }
+  document.getElementById("out").innerHTML = text.split("\n").map(paint).join("\n");
+  await document.fonts.ready;
+  document.body.dataset.ready = "1";
+</script>
+</body>
+</html>
