@@ -6,25 +6,25 @@ date: "2026-10-28"
 tags: ["box", "ai", "playwright", "github", "testing"]
 ---
 
-A couple of weeks ago I approved a two-line CSS pull request in about ten seconds. CI was green, TypeScript was happy, and the diff touched two Tailwind classes on a modal. Later that day I opened the billing page on my phone and tried to upgrade a test account. The "Confirm upgrade" button sat 66 pixels below the bottom of the screen, and because the open modal locked body scroll, there was no way to scroll down and tap it.
+Most of my day-to-day code reviews happen on branches pushed by background coding agents or a teammate working in parallel. When a pull request only touches a couple of Tailwind classes on a modal or a header sheet, CI is green and TypeScript is happy.
 
-Git diffs are terrible at showing layout bugs. I also hate checking out a teammate's branch locally, running `npm install`, starting a dev server, and resizing Chrome DevTools just to verify that a dialog still fits on an iPhone screen. When I'm tired or moving fast, I skip that step.
+The annoying part is checking how that UI change actually renders. To verify that a dialog or mobile sheet still fits on a phone screen, I have to stash whatever I am working on, check out the PR branch locally, run `npm install`, start the dev server, and resize Chrome DevTools. When five branches land in an afternoon, nobody wants to do that by hand every time.
 
-So I built a small bot that does the annoying part for me on every pull request. In this post I want to show you how I built it with [Upstash Box](https://upstash.com/docs/box), Box Browser, Playwright, and [Upstash Blob](https://upstash.com/docs/blob).
+So I built an open-source bot that runs that visual check automatically on every pull request using [Upstash Box](https://upstash.com/docs/box), Box Browser, Playwright, and [Upstash Blob](https://upstash.com/docs/blob). It boots both `main` and the PR branch side by side inside one Box, clicks through the UI at desktop and mobile sizes, checks the live DOM geometry, and drops before-and-after screenshots right into the PR conversation.
 
-The whole project is open source at [leoisadev1/box-pr-visual-tester](https://github.com/leoisadev1/box-pr-visual-tester), and you can see the bot's actual comment on [PR #1](https://github.com/leoisadev1/box-pr-visual-tester/pull/1). Here is a 28-second clip of the full loop from opening the PR to the review comment on GitHub:
+To show how it works end to end, I put together a small demo billing app in [leoisadev1/box-pr-visual-tester](https://github.com/leoisadev1/box-pr-visual-tester), and you can see the bot's real comment on [PR #1](https://github.com/leoisadev1/box-pr-visual-tester/pull/1). Here is a 28-second clip of the full loop from opening the PR to the review comment on GitHub:
 
 <video src="./artifacts/box-pr-tester-demo.mp4" controls muted playsInline />
 
-## The two-line diff that started this
+## The two-line diff in the demo repo
 
-Here is the `Files changed` tab from [PR #1](https://github.com/leoisadev1/box-pr-visual-tester/pull/1/files) in the demo repo. It swaps two lines in `app/billing/index.html`:
+Here is the `Files changed` tab from [PR #1](https://github.com/leoisadev1/box-pr-visual-tester/pull/1/files) in `leoisadev1/box-pr-visual-tester`. It swaps two lines of classes in `app/billing/index.html`:
 
 ![The Files changed tab of PR #1 on GitHub showing a two-line class change in app/billing/index.html](./artifacts/01-hero-pr-overview.png)
 
-If you read those two lines in GitHub, you have to run a browser layout engine in your head. On `main`, the checkout dialog uses `fixed inset-x-4 top-12` with no height cap. On a desktop monitor that works fine, because 900 pixels of vertical height is plenty of room for the plan summary and the card inputs. On a 390x844 phone screen, the dialog content pushes the footer past the bottom edge of the viewport while the backdrop locks page scrolling.
+If you read those two lines in GitHub, you have to run a browser layout engine in your head. On `main`, the checkout dialog uses `fixed inset-x-4 top-12` with no height cap, while the open modal locks `document.body` scroll in the background. On a `1440x900` desktop monitor that works fine, because 900 pixels of vertical height is plenty of room for the plan summary and the card inputs. On a `390x844` phone screen, the dialog content pushes the "Confirm upgrade" button 66 pixels past the bottom edge of the viewport, and because background scroll is locked, a mobile user cannot reach the button.
 
-PR #1 fixes that by adding `max-h-[85dvh] overflow-y-auto` to the dialog and `sticky bottom-0` to the footer. What I wanted was a bot that opens both branches in a real browser, tries to use the modal at desktop and mobile sizes, and replies on the PR with screenshots and exact pixel measurements.
+PR #1 fixes that bug by adding `max-h-[85dvh] overflow-y-auto` to the dialog and `sticky bottom-0` to the footer. What I wanted was a bot that opens both branches in a real browser, tries to use the modal at desktop and mobile sizes, and replies on the PR with screenshots and exact pixel measurements.
 
 ## What runs when a PR opens
 
@@ -127,7 +127,7 @@ for (const branch of BRANCHES) {
 }
 ```
 
-One detail here saved me from a subtle race condition. If someone pushes a second commit while the Box is still booting, cloning the branch name alone will grab the newer commit and post the result under the older SHA. That is why the script fetches the exact 40-character commit SHA from the webhook event, detaches `HEAD` at that SHA, and verifies `git rev-parse HEAD` before starting the server.
+Pinning the full 40-character commit SHA matters if someone pushes a second commit while the Box is still booting. Cloning the branch name alone would grab the newer commit and post the result under the older SHA, so the script fetches the exact commit SHA from the event payload, detaches `HEAD` at that SHA, and verifies `git rev-parse HEAD` before starting the server.
 
 Because the browser lives inside the same Box, both apps are reachable on `http://localhost:3000` and `http://localhost:3001` without exposing public preview tunnels. Here is what the terminal log looks like when the runner boots both worktrees and probes PR #1:
 
@@ -135,7 +135,7 @@ Because the browser lives inside the same Box, both apps are reachable on `http:
 
 ## Mixing Box Browser actions with Playwright over CDP
 
-When I started writing the browser check, I ran into an annoying tradeoff. If you write the whole test with CSS selectors in Playwright, someone renames a button class next week and your test breaks. If you ask a vision model to look at a screenshot and guess whether the layout is broken, it will confidently tell you a clipped button looks great.
+When I wrote the browser check, I wanted to avoid brittle CSS selectors for navigation while still getting exact pixel numbers for the layout check. If you write every click with a selector, renaming a button class breaks the script. If you ask a vision model to look at a screenshot and guess whether the layout is broken, it will happily tell you a clipped button looks fine.
 
 Box Browser lets you combine both approaches on the exact same Chromium tab. I use `tab.act()` in plain English to open the upgrade modal, so the navigation step doesn't care about class names. Then I connect Playwright to the Box's Chromium over `box.browser.cdpUrl()` to read the exact DOM geometry:
 
@@ -163,7 +163,7 @@ try {
 }
 ```
 
-Keep the CDP session open until after you take the screenshot when using `connectOverCDP`. In my first attempt I detached the CDP session right after setting the viewport, and Chromium immediately reset the tab back to `1280x720` before the probe ran.
+Keep the CDP session open until after you take the screenshot when using `connectOverCDP`. When I tested detaching the CDP session right after setting `Emulation.setDeviceMetricsOverride`, Chromium immediately reset the tab back to `1280x720` before the probe ran.
 
 Once the modal is open, `inspectCheckout` in `src/probe.ts` fills the card number, expiry, and CVC, leaves the cardholder name blank on purpose, and tries to click the submit button. To figure out how much of the button is actually visible on screen, it walks up the DOM tree from the button to the fixed modal container:
 
@@ -186,7 +186,7 @@ const visiblePercent = await page.$eval("#checkout button[type=submit]", (button
 });
 ```
 
-That `if (style.position === "fixed") break;` line is there because of a bug I hit while writing the probe. When the modal opens, `document.body` gets `overflow: hidden` to lock background scrolling. A loop that walks all the way to `<body>` treats the locked body as a clipping parent and claims the button is 0% visible even when it sits right in the middle of the screen. Stopping at the fixed dialog gives you the real visibility percentage.
+That `if (style.position === "fixed") break;` line is important whenever a modal locks `document.body` with `overflow: hidden`. A loop that walks all the way to `<body>` treats the scroll-locked body as a clipping parent and reports 0% visibility even when the fixed dialog sits right in the middle of the screen. Stopping at the fixed dialog gives you the real visibility percentage.
 
 Here is what the probe captures at `1440x900` desktop width. Both `main` and `PR #1` render the full modal above the 900px fold, and both show `"Enter the name on your card."` when submitting with an empty name:
 

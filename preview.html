@@ -61,23 +61,23 @@
   <div class="tags"><span>box</span><span>ai</span><span>playwright</span><span>github</span><span>testing</span></div>
 </header>
 <article>
-<p>A couple of weeks ago I approved a two-line CSS pull request in about ten seconds. CI was green, TypeScript was happy, and the diff touched two Tailwind classes on a modal. Later that day I opened the billing page on my phone and tried to upgrade a test account. The &quot;Confirm upgrade&quot; button sat 66 pixels below the bottom of the screen, and because the open modal locked body scroll, there was no way to scroll down and tap it.</p>
-<p>Git diffs are terrible at showing layout bugs. I also hate checking out a teammate's branch locally, running <code>npm install</code>, starting a dev server, and resizing Chrome DevTools just to verify that a dialog still fits on an iPhone screen. When I'm tired or moving fast, I skip that step.</p>
-<p>So I built a small bot that does the annoying part for me on every pull request. In this post I want to show you how I built it with <a href="https://upstash.com/docs/box">Upstash Box</a>, Box Browser, Playwright, and <a href="https://upstash.com/docs/blob">Upstash Blob</a>.</p>
-<p>The whole project is open source at <a href="https://github.com/leoisadev1/box-pr-visual-tester">leoisadev1/box-pr-visual-tester</a>, and you can see the bot's actual comment on <a href="https://github.com/leoisadev1/box-pr-visual-tester/pull/1">PR #1</a>. Here is a 28-second clip of the full loop from opening the PR to the review comment on GitHub:</p>
+<p>Most of my day-to-day code reviews happen on branches pushed by background coding agents or a teammate working in parallel. When a pull request only touches a couple of Tailwind classes on a modal or a header sheet, CI is green and TypeScript is happy.</p>
+<p>The annoying part is checking how that UI change actually renders. To verify that a dialog or mobile sheet still fits on a phone screen, I have to stash whatever I am working on, check out the PR branch locally, run <code>npm install</code>, start the dev server, and resize Chrome DevTools. When five branches land in an afternoon, nobody wants to do that by hand every time.</p>
+<p>So I built an open-source bot that runs that visual check automatically on every pull request using <a href="https://upstash.com/docs/box">Upstash Box</a>, Box Browser, Playwright, and <a href="https://upstash.com/docs/blob">Upstash Blob</a>. It boots both <code>main</code> and the PR branch side by side inside one Box, clicks through the UI at desktop and mobile sizes, checks the live DOM geometry, and drops before-and-after screenshots right into the PR conversation.</p>
+<p>To show how it works end to end, I put together a small demo billing app in <a href="https://github.com/leoisadev1/box-pr-visual-tester">leoisadev1/box-pr-visual-tester</a>, and you can see the bot&#x27;s real comment on <a href="https://github.com/leoisadev1/box-pr-visual-tester/pull/1">PR #1</a>. Here is a 28-second clip of the full loop from opening the PR to the review comment on GitHub:</p>
 <figure class="video"><video src="./artifacts/box-pr-tester-demo.mp4" controls muted playsinline preload="metadata" poster="artifacts/verify-frames/frame-17.00.png"></video></figure>
-<h2>The two-line diff that started this</h2>
-<p>Here is the <code>Files changed</code> tab from <a href="https://github.com/leoisadev1/box-pr-visual-tester/pull/1/files">PR #1</a> in the demo repo. It swaps two lines in <code>app/billing/index.html</code>:</p>
+<h2>The two-line diff in the demo repo</h2>
+<p>Here is the <code>Files changed</code> tab from <a href="https://github.com/leoisadev1/box-pr-visual-tester/pull/1/files">PR #1</a> in <code>leoisadev1/box-pr-visual-tester</code>. It swaps two lines of classes in <code>app/billing/index.html</code>:</p>
 <figure><a href="./artifacts/01-hero-pr-overview.png" target="_blank" rel="noopener"><img src="./artifacts/01-hero-pr-overview.png" alt="The Files changed tab of PR #1 on GitHub showing a two-line class change in app/billing/index.html" loading="lazy"></a><figcaption>The Files changed tab of PR #1 on GitHub showing a two-line class change in app/billing/index.html</figcaption></figure>
-<p>If you read those two lines in GitHub, you have to run a browser layout engine in your head. On <code>main</code>, the checkout dialog uses <code>fixed inset-x-4 top-12</code> with no height cap. On a desktop monitor that works fine, because 900 pixels of vertical height is plenty of room for the plan summary and the card inputs. On a 390x844 phone screen, the dialog content pushes the footer past the bottom edge of the viewport while the backdrop locks page scrolling.</p>
-<p>PR #1 fixes that by adding <code>max-h-[85dvh] overflow-y-auto</code> to the dialog and <code>sticky bottom-0</code> to the footer. What I wanted was a bot that opens both branches in a real browser, tries to use the modal at desktop and mobile sizes, and replies on the PR with screenshots and exact pixel measurements.</p>
+<p>If you read those two lines in GitHub, you have to run a browser layout engine in your head. On <code>main</code>, the checkout dialog uses <code>fixed inset-x-4 top-12</code> with no height cap, while the open modal locks <code>document.body</code> scroll in the background. On a <code>1440x900</code> desktop monitor that works fine, because 900 pixels of vertical height is plenty of room for the plan summary and the card inputs. On a <code>390x844</code> phone screen, the dialog content pushes the &quot;Confirm upgrade&quot; button 66 pixels past the bottom edge of the viewport, and because background scroll is locked, a mobile user cannot reach the button.</p>
+<p>PR #1 fixes that bug by adding <code>max-h-[85dvh] overflow-y-auto</code> to the dialog and <code>sticky bottom-0</code> to the footer. What I wanted was a bot that opens both branches in a real browser, tries to use the modal at desktop and mobile sizes, and replies on the PR with screenshots and exact pixel measurements.</p>
 <h2>What runs when a PR opens</h2>
 <p>When you open or push to a pull request, the bot runs four steps:</p>
 <figure><a href="./artifacts/02-architecture-flow.png" target="_blank" rel="noopener"><img src="./artifacts/02-architecture-flow.png" alt="Four-step pipeline from GitHub PR webhook to Upstash Box from snapshot, Box Browser comparison on ports 3000 and 3001, and Upstash Blob plus GitHub PR comment" loading="lazy"></a><figcaption>Four-step pipeline from GitHub PR webhook to Upstash Box from snapshot, Box Browser comparison on ports 3000 and 3001, and Upstash Blob plus GitHub PR comment</figcaption></figure>
 <ol>
 <li>GitHub triggers the run through a webhook in <code>src/webhook.ts</code> or a GitHub Actions workflow in <code>.github/workflows/visual-qa.yml</code>.</li>
 <li>The runner restores an Upstash Box from a pre-built snapshot, checks out the base commit and the PR commit into two folders, and starts both dev servers on <code>:3000</code> and <code>:3001</code>.</li>
-<li>Inside the Box's built-in Chromium, <code>tab.act</code> clicks through the upgrade flow while Playwright attaches over the Chrome DevTools Protocol via <code>box.browser.cdpUrl()</code> to measure the submit button at <code>1440x900</code> and <code>390x844</code>.</li>
+<li>Inside the Box&#x27;s built-in Chromium, <code>tab.act</code> clicks through the upgrade flow while Playwright attaches over the Chrome DevTools Protocol via <code>box.browser.cdpUrl()</code> to measure the submit button at <code>1440x900</code> and <code>390x844</code>.</li>
 <li>Claude Code turns those measurements into a short verdict, <code>@upstash/blob</code> uploads the before and after screenshots to a public bucket, and the bot edits its comment on the PR.</li>
 </ol>
 <p>I kept the repo small so each step is easy to read and reuse:</p>
@@ -143,12 +143,12 @@ for (const branch of BRANCHES) {
   await mustSucceed(box.exec.command(`PORT=${branch.port} nohup ${env.PREVIEW_START} &gt; /tmp/${branch.folder}.log 2&gt;&amp;1 &amp;`));
   await box.cd(&quot;..&quot;);
 }</code></pre>
-<p>One detail here saved me from a subtle race condition. If someone pushes a second commit while the Box is still booting, cloning the branch name alone will grab the newer commit and post the result under the older SHA. That is why the script fetches the exact 40-character commit SHA from the webhook event, detaches <code>HEAD</code> at that SHA, and verifies <code>git rev-parse HEAD</code> before starting the server.</p>
+<p>Pinning the full 40-character commit SHA matters if someone pushes a second commit while the Box is still booting. Cloning the branch name alone would grab the newer commit and post the result under the older SHA, so the script fetches the exact commit SHA from the event payload, detaches <code>HEAD</code> at that SHA, and verifies <code>git rev-parse HEAD</code> before starting the server.</p>
 <p>Because the browser lives inside the same Box, both apps are reachable on <code>http://localhost:3000</code> and <code>http://localhost:3001</code> without exposing public preview tunnels. Here is what the terminal log looks like when the runner boots both worktrees and probes PR #1:</p>
 <figure><a href="./artifacts/04-dual-server-boot-terminal.png" target="_blank" rel="noopener"><img src="./artifacts/04-dual-server-boot-terminal.png" alt="Terminal log of src/ci.ts booting main on port 3000 and PR #1 on port 3001 and printing the mobile and desktop probe measurements" loading="lazy"></a><figcaption>Terminal log of src/ci.ts booting main on port 3000 and PR #1 on port 3001 and printing the mobile and desktop probe measurements</figcaption></figure>
 <h2>Mixing Box Browser actions with Playwright over CDP</h2>
-<p>When I started writing the browser check, I ran into an annoying tradeoff. If you write the whole test with CSS selectors in Playwright, someone renames a button class next week and your test breaks. If you ask a vision model to look at a screenshot and guess whether the layout is broken, it will confidently tell you a clipped button looks great.</p>
-<p>Box Browser lets you combine both approaches on the exact same Chromium tab. I use <code>tab.act()</code> in plain English to open the upgrade modal, so the navigation step doesn't care about class names. Then I connect Playwright to the Box's Chromium over <code>box.browser.cdpUrl()</code> to read the exact DOM geometry:</p>
+<p>When I wrote the browser check, I wanted to avoid brittle CSS selectors for navigation while still getting exact pixel numbers for the layout check. If you write every click with a selector, renaming a button class breaks the script. If you ask a vision model to look at a screenshot and guess whether the layout is broken, it will happily tell you a clipped button looks fine.</p>
+<p>Box Browser lets you combine both approaches on the exact same Chromium tab. I use <code>tab.act()</code> in plain English to open the upgrade modal, so the navigation step doesn&#x27;t care about class names. Then I connect Playwright to the Box&#x27;s Chromium over <code>box.browser.cdpUrl()</code> to read the exact DOM geometry:</p>
 <pre class="code"><span class="lang">ts</span><code>// src/box-stages.ts
 const browser = await chromium.connectOverCDP(await box.browser.cdpUrl());
 const tab = await box.browser.tab.create(url, { waitUntil: &quot;networkidle&quot; });
@@ -170,7 +170,7 @@ try {
 } finally {
   await cdp.detach();
 }</code></pre>
-<p>Keep the CDP session open until after you take the screenshot when using <code>connectOverCDP</code>. In my first attempt I detached the CDP session right after setting the viewport, and Chromium immediately reset the tab back to <code>1280x720</code> before the probe ran.</p>
+<p>Keep the CDP session open until after you take the screenshot when using <code>connectOverCDP</code>. When I tested detaching the CDP session right after setting <code>Emulation.setDeviceMetricsOverride</code>, Chromium immediately reset the tab back to <code>1280x720</code> before the probe ran.</p>
 <p>Once the modal is open, <code>inspectCheckout</code> in <code>src/probe.ts</code> fills the card number, expiry, and CVC, leaves the cardholder name blank on purpose, and tries to click the submit button. To figure out how much of the button is actually visible on screen, it walks up the DOM tree from the button to the fixed modal container:</p>
 <pre class="code"><span class="lang">ts</span><code>// src/probe.ts
 const visiblePercent = await page.$eval(&quot;#checkout button[type=submit]&quot;, (button) =&gt; {
@@ -188,7 +188,7 @@ const visiblePercent = await page.$eval(&quot;#checkout button[type=submit]&quot
   }
   return Math.round((Math.max(0, bottom - top) / r.height) * 1000) / 10;
 });</code></pre>
-<p>That <code>if (style.position === &quot;fixed&quot;) break;</code> line is there because of a bug I hit while writing the probe. When the modal opens, <code>document.body</code> gets <code>overflow: hidden</code> to lock background scrolling. A loop that walks all the way to <code>&lt;body&gt;</code> treats the locked body as a clipping parent and claims the button is 0% visible even when it sits right in the middle of the screen. Stopping at the fixed dialog gives you the real visibility percentage.</p>
+<p>That <code>if (style.position === &quot;fixed&quot;) break;</code> line is important whenever a modal locks <code>document.body</code> with <code>overflow: hidden</code>. A loop that walks all the way to <code>&lt;body&gt;</code> treats the scroll-locked body as a clipping parent and reports 0% visibility even when the fixed dialog sits right in the middle of the screen. Stopping at the fixed dialog gives you the real visibility percentage.</p>
 <p>Here is what the probe captures at <code>1440x900</code> desktop width. Both <code>main</code> and <code>PR #1</code> render the full modal above the 900px fold, and both show <code>&quot;Enter the name on your card.&quot;</code> when submitting with an empty name:</p>
 <figure><a href="./artifacts/05-box-browser-desktop-comparison.png" target="_blank" rel="noopener"><img src="./artifacts/05-box-browser-desktop-comparison.png" alt="Side-by-side desktop 1440x900 comparison from Box Browser showing both main and PR #1 passing with the Confirm upgrade button 100% visible" loading="lazy"></a><figcaption>Side-by-side desktop 1440x900 comparison from Box Browser showing both main and PR #1 passing with the Confirm upgrade button 100% visible</figcaption></figure>
 <p>And here is the <code>390x844</code> mobile capture. On <code>main</code>, the submit button starts at <code>861.5px</code> and ends at <code>910px</code>, which puts it <code>66px</code> past the <code>844px</code> bottom edge of the screen. On <code>PR #1</code>, the sticky footer keeps the button at <code>745.4px</code> with <code>98.6px</code> of breathing room above the fold:</p>
@@ -200,12 +200,12 @@ const visiblePercent = await page.$eval(&quot;#checkout button[type=submit]&quot
 });
 const agentRead = await tab
   .extract(
-    &quot;Read the checkout dialog. Return the primary button's label and the validation message under the cardholder name, or null if there is none.&quot;,
+    &quot;Read the checkout dialog. Return the primary button&#x27;s label and the validation message under the cardholder name, or null if there is none.&quot;,
     AgentRead,
   )
   .catch(() =&gt; null);</code></pre>
 <h2>Turning the numbers into a PR verdict with Claude Code</h2>
-<p>Raw JSON coordinates are great for assertions, but when I'm reviewing a PR on GitHub I want a two-sentence summary at the top of the comment telling me what changed.</p>
+<p>Raw JSON coordinates are great for assertions, but when I&#x27;m reviewing a PR on GitHub I want a two-sentence summary at the top of the comment telling me what changed.</p>
 <p>Since the Box already has Claude Code configured, <code>computeVerdict</code> passes the before and after measurements to <code>box.agent.run()</code> with a Zod <code>responseSchema</code>:</p>
 <pre class="code"><span class="lang">ts</span><code>// src/report.ts
 export const VerdictSchema = z.object({
@@ -235,7 +235,7 @@ const blob = await bucket.put(
 if (!blob.url) {
   throw new Error(&quot;The Blob bucket is private. GitHub needs public image URLs; make the bucket public.&quot;);
 }</code></pre>
-<p>Then <code>upsertComment()</code> in <code>src/github.ts</code> posts the markdown report to the pull request. Rather than leaving a new comment on every <code>git push</code> and burying the review thread in bot spam, it prefixes the comment with <code>&lt;!-- upstash-box-visual-review --&gt;</code> and edits its existing comment in place. It also checks that the existing comment was authored by the bot's own GitHub login before editing it.</p>
+<p>Then <code>upsertComment()</code> in <code>src/github.ts</code> posts the markdown report to the pull request. Rather than leaving a new comment on every <code>git push</code> and burying the review thread in bot spam, it prefixes the comment with <code>&lt;!-- upstash-box-visual-review --&gt;</code> and edits its existing comment in place. It also checks that the existing comment was authored by the bot&#x27;s own GitHub login before editing it.</p>
 <h2>Wiring it into GitHub Actions or a webhook</h2>
 <p>You can trigger the tester in two ways. If you want zero extra servers to manage, <code>.github/workflows/visual-qa.yml</code> runs the stages directly in GitHub Actions:</p>
 <pre class="code"><span class="lang">yaml</span><code>on:
@@ -265,10 +265,10 @@ jobs:
         id: prepare
         run: npx tsx src/ci.ts prepare
       - name: Restore Box from snapshot
-        if: steps.prepare.outputs.mode == 'box'
+        if: steps.prepare.outputs.mode == &#x27;box&#x27;
         run: npx tsx src/ci.ts restore
       - name: Install Chromium (local mode)
-        if: steps.prepare.outputs.mode == 'local'
+        if: steps.prepare.outputs.mode == &#x27;local&#x27;
         run: npx playwright-core install --with-deps chromium
       - name: Start base (:3000) &amp; PR (:3001) previews
         run: npx tsx src/ci.ts serve
@@ -284,7 +284,7 @@ jobs:
 <p>Notice <code>ref: ${{ github.event.pull_request.base.sha }}</code> on the checkout step. Checking out the runner script from <code>base.sha</code> means an untrusted PR cannot edit <code>src/ci.ts</code> to print your secrets or fake a passing score. The workflow also supports a local Chromium fallback when <code>UPSTASH_BOX_API_KEY</code> is absent, which is handy for PRs opened from external forks where GitHub withholds repository secrets.</p>
 <p>Here is the workflow run on <a href="https://github.com/leoisadev1/box-pr-visual-tester/actions/runs/20791843219">PR #1</a>, which finished in 50 seconds:</p>
 <figure><a href="./artifacts/07-github-actions-workflow-run.png" target="_blank" rel="noopener"><img src="./artifacts/07-github-actions-workflow-run.png" alt="GitHub Actions workflow run for PR #1 showing every step succeeding in 50 seconds" loading="lazy"></a><figcaption>GitHub Actions workflow run for PR #1 showing every step succeeding in 50 seconds</figcaption></figure>
-<p>If you prefer running your own webhook service instead of GitHub Actions, <code>src/webhook.ts</code> verifies GitHub's <code>x-hub-signature-256</code> header and keeps a tiny in-memory queue per PR. When a developer pushes three commits in twenty seconds, it finishes the active run, skips the middle commit, and only runs the newest SHA so an older run never overwrites a newer comment.</p>
+<p>If you prefer running your own webhook service instead of GitHub Actions, <code>src/webhook.ts</code> verifies GitHub&#x27;s <code>x-hub-signature-256</code> header and keeps a tiny in-memory queue per PR. When a developer pushes three commits in twenty seconds, it finishes the active run, skips the middle commit, and only runs the newest SHA so an older run never overwrites a newer comment.</p>
 <h2>The comment that lands on the PR</h2>
 <p>Here is the actual comment the bot posted on <a href="https://github.com/leoisadev1/box-pr-visual-tester/pull/1#issuecomment-3457964759">PR #1</a>:</p>
 <figure><a href="./artifacts/08-github-pr-comment-live.png" target="_blank" rel="noopener"><img src="./artifacts/08-github-pr-comment-live.png" alt="The live GitHub PR #1 comment showing the PASS verdict, side-by-side mobile screenshots for main and PR #1, and the DOM geometry table" loading="lazy"></a><figcaption>The live GitHub PR #1 comment showing the PASS verdict, side-by-side mobile screenshots for main and PR #1, and the DOM geometry table</figcaption></figure>
