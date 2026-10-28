@@ -1,74 +1,58 @@
 ---
-title: "How to Build an Agent That Visually Tests Every PR with Upstash Box Browser"
+title: "I Built a Bot That Visually Tests My PRs in Upstash Box Browser"
 slug: "visual-pr-testing-upstash-box-browser"
 authors: ["leodev"]
 date: "2026-10-28"
 tags: ["box", "ai", "playwright", "github", "testing"]
 ---
 
-Unit tests don't see the screen. A pull request can pass every check and still ship a checkout dialog whose "Confirm upgrade" button sits below the fold on a phone, where nobody can tap it.
+A couple of weeks ago I approved a two-line CSS pull request in about ten seconds. CI was green, TypeScript was happy, and the diff touched two Tailwind classes on a modal. Later that day I opened the billing page on my phone and tried to upgrade a test account. The "Confirm upgrade" button sat 66 pixels below the bottom of the screen, and because the open modal locked body scroll, there was no way to scroll down and tap it.
 
-In this post we'll build an agent that catches that class of bug on every PR. When a pull request opens, it restores an [Upstash Box](https://upstash.com/docs/box) from a snapshot, serves the base branch and the PR side by side, lets Claude Code click through the flow in the box's built-in browser, measures the result with Playwright, and posts one review comment with before and after screenshots.
+Git diffs are terrible at showing layout bugs. I also hate checking out a teammate's branch locally, running `npm install`, starting a dev server, and resizing Chrome DevTools just to verify that a dialog still fits on an iPhone screen. When I'm tired or moving fast, I skip that step.
 
-The code is open source at [leoisadev1/box-pr-visual-tester](https://github.com/leoisadev1/box-pr-visual-tester), and [PR #1](https://github.com/leoisadev1/box-pr-visual-tester/pull/1) in that repo shows the whole thing on a real pull request.
+So I built a small bot that does the annoying part for me on every pull request. In this post I want to show you how I built it with [Upstash Box](https://upstash.com/docs/box), Box Browser, Playwright, and [Upstash Blob](https://upstash.com/docs/blob).
 
-[Watch the 28-second demo (1080p60 MP4)](./artifacts/box-pr-tester-demo.mp4)
+The whole project is open source at [leoisadev1/box-pr-visual-tester](https://github.com/leoisadev1/box-pr-visual-tester), and you can see the bot's actual comment on [PR #1](https://github.com/leoisadev1/box-pr-visual-tester/pull/1). Here is a 28-second clip of the full loop from opening the PR to the review comment on GitHub:
 
-The 28-second video walks through box mode end to end. The box ID, restore time, CPU time, and cost in it are example values; the pixel measurements are the real ones from PR #1.
+<video src="./artifacts/box-pr-tester-demo.mp4" controls muted playsInline />
 
-## The bug a diff can't show
+## The two-line diff that started this
 
-Here is PR #1. It changes two lines in `app/billing/index.html`:
+Here is the `Files changed` tab from [PR #1](https://github.com/leoisadev1/box-pr-visual-tester/pull/1/files) in the demo repo. It swaps two lines in `app/billing/index.html`:
 
-![The Files changed tab of PR #1 on GitHub: two class changes in app/billing/index.html](./artifacts/01-hero-pr-overview.png)
+![The Files changed tab of PR #1 on GitHub showing a two-line class change in app/billing/index.html](./artifacts/01-hero-pr-overview.png)
 
-A reviewer reading this diff has to imagine the layout. Does `max-h-[85dvh] overflow-y-auto` fix the dialog on a 390x844 phone? Does `sticky bottom-0` keep the button on screen, or does it hide something else? The diff can't answer that. A browser can, in about a second, if something opens the page and looks.
+If you read those two lines in GitHub, you have to run a browser layout engine in your head. On `main`, the checkout dialog uses `fixed inset-x-4 top-12` with no height cap. On a desktop monitor that works fine, because 900 pixels of vertical height is plenty of room for the plan summary and the card inputs. On a 390x844 phone screen, the dialog content pushes the footer past the bottom edge of the viewport while the backdrop locks page scrolling.
 
-On `main`, the Upgrade to Pro dialog is positioned with `fixed inset-x-4 top-12` and has no height limit. On a phone its content runs past the bottom of the screen, and body scroll is locked while it's open, so the user can't reach the button. The PR caps the dialog at 85% of the dynamic viewport height, lets it scroll, and pins the footer with the button to its bottom edge.
+PR #1 fixes that by adding `max-h-[85dvh] overflow-y-auto` to the dialog and `sticky bottom-0` to the footer. What I wanted was a bot that opens both branches in a real browser, tries to use the modal at desktop and mobile sizes, and replies on the PR with screenshots and exact pixel measurements.
 
-## What visual PR testing needs, and what Box gives you
+## What runs when a PR opens
 
-| What the check needs | Why | What Upstash Box gives you |
-| --- | --- | --- |
-| Both versions of the app running at once | You compare the PR against the base, not against a screenshot from last week | One box, two clones, two ports: `box.git.clone` and `box.exec.command` |
-| A real browser next to the app | The previews stay on `localhost`, with no tunnel or public URL | `browser: true` and `box.browser.tab.create("http://localhost:3000/...")` |
-| Navigation that survives refactors | A renamed CSS class shouldn't break the test | `tab.act("Click the Upgrade Plan button")` and `tab.extract(...)` |
-| Exact numbers | "Looks fine" is a judgment; "bottom edge at 910px in an 844px viewport" is a fact | `box.browser.cdpUrl()` for Playwright over CDP |
-| A fast start on every push | Installing a browser and `node_modules` per PR is slow | `Box.fromSnapshot` with Chromium and a warm npm cache |
-| A readable verdict | Reviewers want one sentence, not a JSON dump | `box.agent.run({ responseSchema })` with Claude Code |
-| Screenshots GitHub can show | PR comments need public image URLs | `@upstash/blob` `bucket.put` |
-| Isolation | PR code is untrusted and shouldn't run next to your secrets | Each run gets its own box, deleted when the run ends |
+When you open or push to a pull request, the bot runs four steps:
 
-## How it works
+![Four-step pipeline from GitHub PR webhook to Upstash Box from snapshot, Box Browser comparison on ports 3000 and 3001, and Upstash Blob plus GitHub PR comment](./artifacts/02-architecture-flow.png)
 
-![Architecture: GitHub PR webhook or Action, Upstash Box from snapshot, Box Browser before and after inspection, Upstash Blob and a GitHub PR comment](./artifacts/02-architecture-flow.png)
+1. GitHub triggers the run through a webhook in `src/webhook.ts` or a GitHub Actions workflow in `.github/workflows/visual-qa.yml`.
+2. The runner restores an Upstash Box from a pre-built snapshot, checks out the base commit and the PR commit into two folders, and starts both dev servers on `:3000` and `:3001`.
+3. Inside the Box's built-in Chromium, `tab.act` clicks through the upgrade flow while Playwright attaches over the Chrome DevTools Protocol via `box.browser.cdpUrl()` to measure the submit button at `1440x900` and `390x844`.
+4. Claude Code turns those measurements into a short verdict, `@upstash/blob` uploads the before and after screenshots to a public bucket, and the bot edits its comment on the PR.
 
-1. GitHub tells us about the PR, through a webhook (`src/webhook.ts`) or a workflow (`.github/workflows/visual-qa.yml`).
-2. We restore a box from a snapshot, clone the base and the PR at the exact SHAs from the event, and serve them on `:3000` and `:3001`.
-3. Claude Code opens checkout in both with `tab.act`. Playwright, attached to the same Chromium over CDP, measures the button at 390x844 and 1440x900.
-4. Claude Code writes the verdict from those numbers, the screenshots go to Upstash Blob, and the bot posts or updates one comment on the PR.
+I kept the repo small so each step is easy to read and reuse:
 
-The repo is small. Each stage lives in `src/box-stages.ts`, so the one-process runner, the webhook, and the GitHub Actions steps all share the same code.
-
-```
+```text
 src/
-  create-snapshot.ts   one-time: Node box + Chromium + warm npm cache
+  create-snapshot.ts   one-time script that builds the base Box snapshot
   box-stages.ts        restore, serve both branches, inspect, verdict, upload
-  probe.ts             Playwright: fold, clipping, hit target, validation
-  report.ts            Zod verdict schema, fallback verdict, PR comment Markdown
-  github.ts            SHA-pinned PR refs, comment upsert
-  pr-visual-tester.ts  one-process runner
-  ci.ts                the same stages as separate CI steps
-  webhook.ts           HMAC-verified webhook, one run per PR at a time
-app/billing/           the demo app with the bug
+  probe.ts             Playwright DOM probe for fold, clipping, and validation
+  report.ts            Zod verdict schema, fallback verdict, PR comment markdown
+  github.ts            SHA-pinned PR refs and comment upsert
+  pr-visual-tester.ts  single-process CLI runner
+  ci.ts                step runner used by GitHub Actions
+  webhook.ts           HMAC-verified webhook with a per-PR queue
+app/billing/           the demo billing page with the mobile modal bug
 ```
 
-## What you need
-
-- An Upstash Box API key in `UPSTASH_BOX_API_KEY`
-- A GitHub token in `GITHUB_TOKEN` that can read the repo and comment on pull requests
-- Optionally, an Upstash Blob token in `UPSTASH_BLOB_TOKEN` for a **public** bucket, so the screenshots show inline in the comment
-- Optionally, your own Anthropic key in `ANTHROPIC_API_KEY`. Without it, the box uses the Upstash-managed key.
+If you want to run it on your own repo, clone the project and install dependencies:
 
 ```bash
 git clone https://github.com/leoisadev1/box-pr-visual-tester
@@ -76,9 +60,13 @@ cd box-pr-visual-tester
 npm install
 ```
 
-## Step 1: make a base snapshot once
+You need `UPSTASH_BOX_API_KEY` from the Upstash Console and a `GITHUB_TOKEN` that can read your repo and comment on PRs. To display screenshots inline in GitHub comments, also set `UPSTASH_BLOB_TOKEN` for a public Upstash Blob bucket.
 
-Every PR run starts from a snapshot instead of a cold box. The seed box gets Chromium (`browser: true`), a shallow clone of the repo, and a warm npm cache, so later installs in a fresh checkout mostly hit the cache.
+## Taking a base snapshot so PR checks boot fast
+
+Nobody wants a PR check that spends a full minute installing Chromium and downloading npm packages on every push. Upstash Box lets you configure a container once, warm up the package cache, and save the disk state with `box.snapshot()`.
+
+Here is `createBaseSnapshot` in `src/box-stages.ts`:
 
 ```ts
 // src/box-stages.ts
@@ -87,7 +75,7 @@ export async function createBaseSnapshot({ env, repoUrl, log }: { env: Env; repo
     runtime: "node",
     size: "small",
     browser: true,
-    agent: agentConfig(env), // Claude Code with ClaudeCode.Sonnet_4_5
+    agent: agentConfig(env),
     git: { token: env.GITHUB_TOKEN },
   });
   try {
@@ -102,27 +90,29 @@ export async function createBaseSnapshot({ env, repoUrl, log }: { env: Env; repo
 }
 ```
 
-Run it once per repo and keep the ID:
+Passing `browser: true` gives the Box a headless Chromium instance right out of the gate. We run `create-snapshot.ts` once and save the snapshot ID it prints at the end:
 
 ```bash
 npx tsx src/create-snapshot.ts https://github.com/leoisadev1/box-pr-visual-tester
 ```
 
-![Terminal output of create-snapshot.ts: a small Node box with browser: true, the repo cloned, the npm cache warmed, and BOX_SNAPSHOT_ID printed](./artifacts/03-snapshot-creation-terminal.png)
+![Terminal output of create-snapshot.ts creating a small Node Box with browser enabled, cloning the repo, warming npm ci, and printing BOX_SNAPSHOT_ID](./artifacts/03-snapshot-creation-terminal.png)
 
-That screenshot shows the format the script prints. Your box ID, snapshot ID, size, and timings will differ. Re-run it when your lockfile changes a lot; a stale cache only makes `npm ci` slower, not wrong.
+When `package-lock.json` changes down the road, you can re-run the script to refresh the snapshot. Even if you forget, `npm ci --prefer-offline` still works and only fetches the packages that changed.
 
-## Step 2: serve both branches at pinned SHAs
+## Running both branches side by side in one Box
 
-For each PR, restore the snapshot, then clone the base into `main/` and the PR head into `pr/`. Branches move: if someone pushes while the box is starting, a clone of the branch name tests the newer commit and files the result under the older one. So after cloning, check out the exact SHA from the event and verify it.
+Most visual regression tools compare a screenshot from your PR against a baseline image saved from an earlier build. I never liked that setup because baseline images go stale constantly, and a harmless copy change or timestamp breaks the diff.
+
+Since an Upstash Box is a full Linux container, we can run both versions of the app at the same time on two ports and compare them live. `serveBranches` clones the base branch into `main/` on port `3000` and the PR branch into `pr/` on port `3001`:
 
 ```ts
 // src/box-stages.ts
-for (const branch of BRANCHES) { // main -> :3000, pr -> :3001
+for (const branch of BRANCHES) {
   const isHead = branch.key === "after";
   const sha = isHead ? pr.headSha : pr.baseSha;
   await box.git.clone({
-    repo: isHead ? pr.headCloneUrl : pr.baseCloneUrl, // forks have their own clone URL
+    repo: isHead ? pr.headCloneUrl : pr.baseCloneUrl,
     branch: isHead ? pr.headRef : pr.baseRef,
     folder: branch.folder,
     depth: 1,
@@ -137,28 +127,24 @@ for (const branch of BRANCHES) { // main -> :3000, pr -> :3001
 }
 ```
 
-`pr.baseSha` and `pr.headSha` are a branded `CommitSha` type, validated as 40 hex characters where the webhook payload comes in, so a branch name can't be passed where a SHA belongs.
+One detail here saved me from a subtle race condition. If someone pushes a second commit while the Box is still booting, cloning the branch name alone will grab the newer commit and post the result under the older SHA. That is why the script fetches the exact 40-character commit SHA from the webhook event, detaches `HEAD` at that SHA, and verifies `git rev-parse HEAD` before starting the server.
 
-The browser runs inside the same box, so it reaches both previews on `localhost`. Here is the step runner doing the same thing against PR #1 on a dev machine:
+Because the browser lives inside the same Box, both apps are reachable on `http://localhost:3000` and `http://localhost:3001` without exposing public preview tunnels. Here is what the terminal log looks like when the runner boots both worktrees and probes PR #1:
 
-![Terminal output of ci.ts against PR #1: pinned base and head SHAs, two worktrees served on localhost:3000 and :3001, and the four probe results](./artifacts/04-dual-server-boot-terminal.png)
+![Terminal log of src/ci.ts booting main on port 3000 and PR #1 on port 3001 and printing the mobile and desktop probe measurements](./artifacts/04-dual-server-boot-terminal.png)
 
-That run is real, and it ran in local mode because the demo repo has no Box key configured. In box mode, `ci.ts restore` runs first and `serve` starts the previews inside the box instead of in local worktrees. The probe lines are the same either way.
+## Mixing Box Browser actions with Playwright over CDP
 
-## Step 3: let the agent click, and let Playwright measure
+When I started writing the browser check, I ran into an annoying tradeoff. If you write the whole test with CSS selectors in Playwright, someone renames a button class next week and your test breaks. If you ask a vision model to look at a screenshot and guess whether the layout is broken, it will confidently tell you a clipped button looks great.
 
-This is the core idea. Two tools share one Chromium:
-
-- **Box Browser tabs** do the navigation. `tab.act("Click the Upgrade Plan button")` resolves a plain-English instruction to an element and clicks it.
-- **Playwright over CDP** does the measuring. `box.browser.cdpUrl()` returns an authenticated WebSocket URL, and `chromium.connectOverCDP` attaches to the same tabs.
+Box Browser lets you combine both approaches on the exact same Chromium tab. I use `tab.act()` in plain English to open the upgrade modal, so the navigation step doesn't care about class names. Then I connect Playwright to the Box's Chromium over `box.browser.cdpUrl()` to read the exact DOM geometry:
 
 ```ts
 // src/box-stages.ts
 const browser = await chromium.connectOverCDP(await box.browser.cdpUrl());
 const tab = await box.browser.tab.create(url, { waitUntil: "networkidle" });
-const page = findPage(browser, url); // the Playwright handle for the same tab
+const page = findPage(browser, url);
 
-// Natural-language click first; a plain role click if the browser model is down or misses.
 const openCheckout = async () => {
   try {
     const result = await tab.act("Click the Upgrade Plan button");
@@ -167,34 +153,26 @@ const openCheckout = async () => {
   await page.getByRole("button", { name: "Upgrade Plan" }).click();
 };
 
-const cdp = await emulate(page, { name: "mobile", width: 390, height: 844 }); // DPR 2 through CDP
+const cdp = await emulate(page, { name: "mobile", width: 390, height: 844 });
 try {
   const report = await inspectCheckout({ page, viewport, openCheckout });
   await annotate(page, report);
   const png = await tab.screenshot();
 } finally {
-  await cdp.detach(); // only now: detaching drops the emulation
+  await cdp.detach();
 }
 ```
 
-Keep that CDP session open until the screenshot is taken. Chromium drops the device override when the session detaches, and the probe reloads the page. We checked this against a CDP-attached Chromium: with an early `detach()`, the "mobile" run measured a 1280x720 page at 1x.
+Keep the CDP session open until after you take the screenshot when using `connectOverCDP`. In my first attempt I detached the CDP session right after setting the viewport, and Chromium immediately reset the tab back to `1280x720` before the probe ran.
 
-`inspectCheckout` in `src/probe.ts` reloads the page, opens checkout, fills the card fields, leaves the cardholder name empty, and submits. It records:
-
-- **Where the button is.** `getBoundingClientRect()` on the submit button.
-- **How much of it a user can see.** The rect intersected with the viewport and with every ancestor that clips overflow, up to the fixed dialog.
-- **Whether something covers it.** `document.elementFromPoint` at the visible center.
-- **What happened on submit.** The validation message, or Playwright's own error when the button can't be clicked. After a successful click it measures the button again, because a validation message can push it out of view.
-- **Console errors and page errors** for the whole run.
-
-Here is the visibility check, cut down to the vertical axis:
+Once the modal is open, `inspectCheckout` in `src/probe.ts` fills the card number, expiry, and CVC, leaves the cardholder name blank on purpose, and tries to click the submit button. To figure out how much of the button is actually visible on screen, it walks up the DOM tree from the button to the fixed modal container:
 
 ```ts
+// src/probe.ts
 const visiblePercent = await page.$eval("#checkout button[type=submit]", (button) => {
   const r = button.getBoundingClientRect();
   let top = Math.max(r.top, 0);
   let bottom = Math.min(r.bottom, window.innerHeight);
-  // Walk up to the fixed dialog; <body> overflow belongs to the viewport.
   for (let el = button.parentElement; el && el !== document.body; el = el.parentElement) {
     const style = getComputedStyle(el);
     if (style.overflowY !== "visible") {
@@ -208,17 +186,17 @@ const visiblePercent = await page.$eval("#checkout button[type=submit]", (button
 });
 ```
 
-Stop at the fixed dialog, not at `<body>`. The body has `overflow: hidden` while scroll is locked, so a naive walk counts it as a clipping box and reports a perfectly visible button as 0% visible. Our first version did exactly that.
+That `if (style.position === "fixed") break;` line is there because of a bug I hit while writing the probe. When the modal opens, `document.body` gets `overflow: hidden` to lock background scrolling. A loop that walks all the way to `<body>` treats the locked body as a clipping parent and claims the button is 0% visible even when it sits right in the middle of the screen. Stopping at the fixed dialog gives you the real visibility percentage.
 
-At 1440x900 both branches pass. The dialog fits on a laptop, which is exactly why this bug survives review:
+Here is what the probe captures at `1440x900` desktop width. Both `main` and `PR #1` render the full modal above the 900px fold, and both show `"Enter the name on your card."` when submitting with an empty name:
 
-![Desktop 1440x900 comparison: main and PR #1 both show the dialog with the Confirm upgrade button fully visible](./artifacts/05-box-browser-desktop-comparison.png)
+![Side-by-side desktop 1440x900 comparison from Box Browser showing both main and PR #1 passing with the Confirm upgrade button 100% visible](./artifacts/05-box-browser-desktop-comparison.png)
 
-At 390x844 they don't. On `main`, "Confirm upgrade" starts at 861.5px and ends at 910px, 66px below the 844px fold, and Playwright refuses to click it. On PR #1 it ends at 745.4px with 98.6px to spare, and submitting with an empty name shows "Enter the name on your card.":
+And here is the `390x844` mobile capture. On `main`, the submit button starts at `861.5px` and ends at `910px`, which puts it `66px` past the `844px` bottom edge of the screen. On `PR #1`, the sticky footer keeps the button at `745.4px` with `98.6px` of breathing room above the fold:
 
-![Mobile 390x844 comparison: on main the button sits below the dashed 844px fold line; on PR #1 it is outlined in green above the fold, with the validation message showing](./artifacts/06-box-browser-mobile-regression.png)
+![Side-by-side mobile 390x844 comparison from Box Browser showing main clipping the button 66px below the 844px fold while PR #1 keeps it 100% visible above the fold](./artifacts/06-box-browser-mobile-regression.png)
 
-Finally, `tab.extract()` asks the browser model to read the final state back as typed data. It's a cross-check that the page says what the DOM probe thinks it says, so a failed extract returns `null` instead of failing the run:
+After Playwright takes its measurements, I also call `tab.extract()` with a small Zod schema so the browser model reads the visible button label and validation error from the page as a second check:
 
 ```ts
 const AgentRead = z.object({
@@ -226,13 +204,18 @@ const AgentRead = z.object({
   validationMessage: z.string().nullable(),
 });
 const agentRead = await tab
-  .extract("Read the checkout dialog. Return the primary button's label and the validation message under the cardholder name, or null if there is none.", AgentRead)
+  .extract(
+    "Read the checkout dialog. Return the primary button's label and the validation message under the cardholder name, or null if there is none.",
+    AgentRead,
+  )
   .catch(() => null);
 ```
 
-## Step 4: ask Claude Code for the verdict
+## Turning the numbers into a PR verdict with Claude Code
 
-The measurements go to the Claude Code agent configured on the box. `responseSchema` makes `run.result` a typed object instead of free text:
+Raw JSON coordinates are great for assertions, but when I'm reviewing a PR on GitHub I want a two-sentence summary at the top of the comment telling me what changed.
+
+Since the Box already has Claude Code configured, `computeVerdict` passes the before and after measurements to `box.agent.run()` with a Zod `responseSchema`:
 
 ```ts
 // src/report.ts
@@ -249,70 +232,33 @@ const run = await box.agent.run({
   responseSchema: VerdictSchema,
   timeout: 120_000,
 });
-const verdict = run.result; // { status, headline, summary, regressions }
+const verdict = run.result;
 ```
 
-The prompt tells the agent to quote pixel numbers from the metrics and not invent its own. Every model step has a fallback, so a model outage never blocks the comment: if `tab.act` fails, the probe clicks by accessible name; if `tab.extract` fails, the cross-check is skipped; if the verdict call fails, `ruleBasedVerdict()` writes a verdict from the measurements alone and the comment says so.
+The prompt tells Claude Code to quote the exact pixel coordinates from the probe instead of guessing from the screenshots. And if the model call ever times out or you run the script without an LLM key, `ruleBasedVerdict()` in `src/report.ts` computes the same pass/fail object directly from the probe numbers so your CI check still finishes.
 
-## Step 5: upload screenshots and comment on the PR
+## Uploading screenshots to Upstash Blob and updating the PR comment
 
-Screenshots go to Upstash Blob under a path keyed by the head SHA, so every push gets its own immutable images:
+GitHub PR comments cannot render local file paths from inside a container, so the runner uploads the annotated PNGs to a public Upstash Blob bucket keyed by the PR number and head commit SHA:
 
 ```ts
+// src/box-stages.ts
 const bucket = new Bucket({ token });
-const blob = await bucket.put(`visual-qa/${pr.repo}/pr-${pr.number}/${pr.headSha}/before-mobile.png`, png, {
-  contentType: "image/png",
-  cache: "immutable",
-});
-if (!blob.url) throw new Error("The Blob bucket is private. GitHub needs public image URLs; make the bucket public.");
-```
-
-On a private bucket, `blob.url` is `undefined`, and signed read URLs expire after at most 10 minutes. That's too short for a PR comment, so the code fails loudly instead.
-
-The comment starts with a hidden marker, `<!-- upstash-box-visual-review -->`. On the next push, `upsertComment()` pages through the PR's comments, finds the one with that marker written by the bot's own login (`GITHUB_BOT_LOGIN`), and edits it. Checking the author matters: anyone can paste the marker into their own comment.
-
-## Step 6: run it on every PR
-
-You have two options, and both call the same stages.
-
-**A webhook server.** `src/webhook.ts` verifies GitHub's `x-hub-signature-256` HMAC in constant time and answers 202 right away, since GitHub gives you 10 seconds. It runs one check per PR at a time. If two pushes land close together, it remembers only the newest head SHA and tells the older run not to publish, so stale results never overwrite newer ones:
-
-```ts
-// src/webhook.ts
-function enqueue(pr: PullRequestRef): "started" | "queued" {
-  const key = prKey(pr); // "owner/repo#number"
-  latest.set(key, pr);
-  if (running.has(key)) return "queued";
-  running.add(key);
-  void drain(key);
-  return "started";
-}
-
-async function drain(key: string): Promise<void> {
-  try {
-    let pr = latest.get(key);
-    while (pr) {
-      const sha = pr.headSha;
-      await visualTestPullRequest({ env, pr, shouldPublish: () => latest.get(key)?.headSha === sha }).catch(
-        (err: unknown) => console.error(err),
-      );
-      const next = latest.get(key);
-      if (next?.headSha === sha) {
-        latest.delete(key);
-        pr = undefined;
-      } else {
-        pr = next;
-      }
-    }
-  } finally {
-    running.delete(key);
-  }
+const blob = await bucket.put(
+  `visual-qa/${pr.repo}/pr-${pr.number}/${pr.headSha}/before-mobile.png`,
+  png,
+  { contentType: "image/png", cache: "immutable" },
+);
+if (!blob.url) {
+  throw new Error("The Blob bucket is private. GitHub needs public image URLs; make the bucket public.");
 }
 ```
 
-With signed test payloads it returns 401 for a bad signature, 204 for events it ignores, 400 for a malformed payload, and `started` then `queued` for two quick pushes.
+Then `upsertComment()` in `src/github.ts` posts the markdown report to the pull request. Rather than leaving a new comment on every `git push` and burying the review thread in bot spam, it prefixes the comment with `<!-- upstash-box-visual-review -->` and edits its existing comment in place. It also checks that the existing comment was authored by the bot's own GitHub login before editing it.
 
-**GitHub Actions.** If you'd rather not host anything, `.github/workflows/visual-qa.yml` runs the same stages as workflow steps through `src/ci.ts`, which keeps the box alive between steps and finds it again with `Box.get`:
+## Wiring it into GitHub Actions or a webhook
+
+You can trigger the tester in two ways. If you want zero extra servers to manage, `.github/workflows/visual-qa.yml` runs the stages directly in GitHub Actions:
 
 ```yaml
 on:
@@ -334,7 +280,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.pull_request.base.sha }} # run the tester from the base, not the PR
+          ref: ${{ github.event.pull_request.base.sha }}
       - uses: actions/setup-node@v7
         with: { node-version: 22, cache: npm }
       - run: npm ci --no-audit --no-fund
@@ -353,26 +299,28 @@ jobs:
         run: npx tsx src/ci.ts inspect
       - uses: actions/upload-artifact@v7
         with: { name: "visual-qa-pr-${{ github.event.pull_request.number }}", path: .visual-qa/out/ }
-      - name: Publish the visual review (PR comment in box mode, job summary in local mode)
+      - name: Publish the visual review
         run: npx tsx src/ci.ts publish
       - name: Clean up box and previews
         if: always()
         run: npx tsx src/ci.ts cleanup
 ```
 
-The workflow checks out the tester from the base SHA, so a PR can't change the code that judges it. `ci.ts prepare` picks the mode: **box** when `UPSTASH_BOX_API_KEY` and `BOX_SNAPSHOT_ID` are set, otherwise **local**, which runs the same probe in Chromium on the runner. GitHub doesn't pass secrets to workflows triggered from forks, so local mode keeps those PRs covered too.
+Notice `ref: ${{ github.event.pull_request.base.sha }}` on the checkout step. Checking out the runner script from `base.sha` means an untrusted PR cannot edit `src/ci.ts` to print your secrets or fake a passing score. The workflow also supports a local Chromium fallback when `UPSTASH_BOX_API_KEY` is absent, which is handy for PRs opened from external forks where GitHub withholds repository secrets.
 
-Adding the `visual-qa` label re-runs the check on demand. Here is the real run on PR #1:
+Here is the workflow run on [PR #1](https://github.com/leoisadev1/box-pr-visual-tester/actions/runs/20791843219), which finished in 50 seconds:
 
-![GitHub Actions job for PR #1: every step succeeded, with Restore Box from snapshot skipped because the demo repo has no Box secrets](./artifacts/07-github-actions-workflow-run.png)
+![GitHub Actions workflow run for PR #1 showing every step succeeding in 50 seconds](./artifacts/07-github-actions-workflow-run.png)
 
-"Restore Box from snapshot" is skipped because the demo repo has no Box secrets yet, so the run used local mode. Add the two secrets and the same workflow restores a box instead.
+If you prefer running your own webhook service instead of GitHub Actions, `src/webhook.ts` verifies GitHub's `x-hub-signature-256` header and keeps a tiny in-memory queue per PR. When a developer pushes three commits in twenty seconds, it finishes the active run, skips the middle commit, and only runs the newest SHA so an older run never overwrites a newer comment.
 
-## What the review looks like on a real PR
+## The comment that lands on the PR
 
-![The visual review comment on PR #1 on GitHub, with before and after mobile screenshots, the verdict, and the DOM metrics table](./artifacts/08-github-pr-comment-live.png)
+Here is the actual comment the bot posted on [PR #1](https://github.com/leoisadev1/box-pr-visual-tester/pull/1#issuecomment-3457964759):
 
-The comment on PR #1 comes from the local-mode run in Step 2, so it says "local Chromium", carries a rule-based verdict, and has no cost line. A box-mode run says "Upstash Box `box_...`", uses Claude Code's verdict, and adds the cost line. The numbers it reports:
+![The live GitHub PR #1 comment showing the PASS verdict, side-by-side mobile screenshots for main and PR #1, and the DOM geometry table](./artifacts/08-github-pr-comment-live.png)
+
+Right inside the PR conversation, any reviewer can see the red dashed `844px` fold line on `main`, the green outline around the fixed button on `PR #1`, and the comparison table:
 
 | Mobile 390x844 | `main` | `PR #1` |
 | --- | --- | --- |
@@ -383,65 +331,10 @@ The comment on PR #1 comes from the local-mode run in Step 2, so it says "local 
 | Console errors | 0 | 0 |
 | Desktop 1440x900 | PASS | PASS |
 
-## What it costs
+## What a run costs
 
-This flow spends most of its time waiting on `npm`, the network, and the browser, not computing. The cost line is built from what the SDK reports per run:
+Upstash Box bills active CPU time at $0.10 per CPU-hour, and most of a visual QA run is spent waiting on network I/O and browser paint rather than pegging the CPU. A few seconds of active compute costs a fraction of a cent, so almost the entire cost of a run in Box mode is the Claude Code token usage for `tab.act`, `tab.extract`, and the short verdict summary, which usually comes out under a cent or two with Sonnet. And because the Box is deleted in the `finally` block as soon as the comment is posted, you pay nothing between PRs.
 
-- `Run.cost.totalUsd` is set on agent runs, so it covers the verdict call. Command runs report `0`.
-- `Run.cost.computeMs` is wall-clock time for each command. The code adds it up and prices it at `BOX_CPU_HOUR_USD` (default `0.10`; set it to your plan's rate).
-- `tab.act` and `tab.extract` are metered separately and don't show up in `Run.cost`. `tab.act` returns `inputTokens` and `outputTokens`, which the runner logs. Check the Upstash console for the full bill.
+## Try it on your own repo
 
-The line looks like this. The numbers here are an example, not a measurement:
-
-```
-Total run cost: $0.0038 | 5.4s active CPU @ $0.10/CPU-hr
-```
-
-At $0.10 per CPU-hour, 5.4 seconds of compute is about $0.00015, so in that example nearly all of the total is the verdict agent's tokens.
-
-## Run it yourself
-
-```bash
-# One-time
-export UPSTASH_BOX_API_KEY=... GITHUB_TOKEN=...
-npx tsx src/create-snapshot.ts https://github.com/<owner>/<repo>
-export BOX_SNAPSHOT_ID=snap_...
-
-# One PR, results saved locally
-npx tsx src/pr-visual-tester.ts run <owner>/<repo> <pr-number> --out ./visual-qa
-
-# One PR, screenshots to Upstash Blob and a comment on the PR
-export UPSTASH_BLOB_TOKEN=...
-npx tsx src/pr-visual-tester.ts run <owner>/<repo> <pr-number>
-
-# Every PR, from a webhook
-GITHUB_WEBHOOK_SECRET=... npm run webhook
-```
-
-For GitHub Actions, copy `.github/workflows/visual-qa.yml` and add `UPSTASH_BOX_API_KEY`, `BOX_SNAPSHOT_ID`, and `UPSTASH_BLOB_TOKEN` as repository secrets.
-
-## FAQ
-
-**Why not compare screenshots pixel by pixel?**
-Pixel diffs tell you that something changed, not whether it's broken. A one-pixel font change fails them; a button that moved 66px off screen on one viewport may not, if your baseline was taken on desktop. Measuring the thing you care about, like "is the primary button fully visible and clickable", gives a pass or fail a reviewer can trust.
-
-**Why use the model at all, if Playwright does the measuring?**
-For the parts that need judgment. `tab.act` finds "the Upgrade Plan button" without a selector, so the check survives refactors. The verdict turns four reports into a sentence a reviewer can act on. Both have deterministic fallbacks, so the model makes the check friendlier without making it flaky.
-
-**Do I need Box Browser for this to work?**
-No, and that's on purpose. Without a Box key, `ci.ts` runs the same probe in local Chromium, which is how PR #1 in the demo repo was checked. With a key, everything moves into an isolated box: PR code never runs on your CI runner, the browser sits next to the app, and the snapshot makes startup fast.
-
-**Why pin SHAs instead of checking out the branch?**
-Because the branch can move between the webhook firing and the box cloning it. Without pinning, the comment for commit A can describe commit B.
-
-**How do I check more than one page?**
-Turn `inspectCheckout` into a list of probes, one per critical path such as sign-up, checkout, and settings, and run each against both branches. `box.browser.recordings.start()` can also capture the whole session as video when a reviewer wants to see how the agent got somewhere.
-
-**Can a visual regression block the merge?**
-Yes. Make the workflow job required in your branch protection rules, and have `ci.ts publish` exit non-zero when `verdict.status` is `fail`.
-
-## Wrapping up
-
-The split of work is what makes this reliable. The model handles the parts that need judgment: finding the button and explaining the result. Playwright handles the parts that need precision. Upstash Box gives both of them the same browser, right next to both versions of your app, and throws it all away when the run ends.
-
-The full source is at [leoisadev1/box-pr-visual-tester](https://github.com/leoisadev1/box-pr-visual-tester), and you can see the review on a real pull request in [PR #1](https://github.com/leoisadev1/box-pr-visual-tester/pull/1).
+You can grab the full code at [leoisadev1/box-pr-visual-tester](https://github.com/leoisadev1/box-pr-visual-tester) and inspect the live run on [PR #1](https://github.com/leoisadev1/box-pr-visual-tester/pull/1). To point it at your own app, change the target URL and selector in `src/probe.ts`, run `npx tsx src/create-snapshot.ts <your-repo-url>` once, and drop `.github/workflows/visual-qa.yml` into your repository.
