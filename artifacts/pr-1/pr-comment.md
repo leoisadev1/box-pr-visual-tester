@@ -1,7 +1,7 @@
-<!-- upstash-box-visual-qa -->
-## Automated visual review for #1
+<!-- upstash-box-visual-review -->
+## Visual Review: PASS
 
-**FAIL on `main`, PASS on `PR #1`.** Checked in local Chromium 156.0.8078.4 at 390x844 and 1440x900.
+PR #1. **FAIL on `main`, PASS on `PR #1`.** Checked in local Chromium 156.0.8078.4 at 390x844 and 1440x900.
 
 | Before: `main` | After: `PR #1` |
 | --- | --- |

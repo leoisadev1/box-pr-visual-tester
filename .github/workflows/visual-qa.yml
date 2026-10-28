@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   visual-qa:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
       UPSTASH_BOX_API_KEY: ${{ secrets.UPSTASH_BOX_API_KEY }}
@@ -31,13 +31,13 @@ jobs:
       GITHUB_BOT_LOGIN: github-actions[bot]
     steps:
       - name: Check out the tester
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.base.sha }}
           fetch-depth: 1
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -64,7 +64,7 @@ jobs:
         run: npx tsx src/ci.ts inspect
 
       - name: Upload screenshots as a workflow artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: visual-qa-pr-${{ github.event.pull_request.number }}
           path: .visual-qa/out/

@@ -39,7 +39,7 @@ export function commentHTML({ m, shots, shotWidth = 260 }) {
     <div class="comment-box">
       <div class="comment-head"><b>upstash-box-qa</b><span class="pill bot">bot</span><span>commented just now</span></div>
       <div class="comment-body">
-        <h3>Automated visual review for #42</h3>
+        <h3>Visual Review: ${m.verdict.status.toUpperCase()}</h3>
         <p><b>${status(bm)} on <code>main</code>, ${status(am)} on <code>PR #42</code>.</b> Checked in Upstash Box <code>${esc(m.box.boxId)}</code> at 390x844 and 1440x900.</p>
         <div class="review">
           <div class="shots">

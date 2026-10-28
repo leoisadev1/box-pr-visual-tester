@@ -32,7 +32,7 @@ export interface CostLine {
   cpuHourUsd: number;
 }
 
-export const COMMENT_MARKER = "<!-- upstash-box-visual-qa -->";
+export const COMMENT_MARKER = "<!-- upstash-box-visual-review -->";
 
 /** Prompt for the in-box agent: structured metrics in, one verdict out. */
 export function buildVerdictPrompt({
@@ -200,9 +200,9 @@ export function renderComment({
     ...preface,
     ...(preface.length > 0 ? [""] : []),
     COMMENT_MARKER,
-    `## Automated visual review for #${prNumber}`,
+    `## Visual Review: ${verdict.status.toUpperCase()}`,
     "",
-    `**${status(bm)} on \`${before.label}\`, ${status(am)} on \`${after.label}\`.** Checked in ${checkedIn} at 390x844 and 1440x900.`,
+    `PR #${prNumber}. **${status(bm)} on \`${before.label}\`, ${status(am)} on \`${after.label}\`.** Checked in ${checkedIn} at 390x844 and 1440x900.`,
     "",
     ...mobileShots,
     "",
