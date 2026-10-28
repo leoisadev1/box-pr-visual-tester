@@ -45,17 +45,24 @@ const marked = new Marked({
   renderer: {
     code({ text, lang }) {
       const language = lang && hljs.getLanguage(lang) ? lang : "plaintext";
-      const html = hljs.highlight(text, { language }).value;
-      return `<pre class="code"><span class="lang">${esc(lang ?? "")}</span><code class="hljs language-${language}">${html}</code></pre>\n`;
+      let fileHeader = "";
+      let codeBody = text;
+      const firstLineMatch = /^(?:\/\/|#)\s*([a-zA-Z0-9_./-]+\.[a-zA-Z0-9]+(?:\s*&\s*[a-zA-Z0-9_./-]+\.[a-zA-Z0-9]+)?)\n/.exec(text);
+      if (firstLineMatch?.[1]) {
+        fileHeader = `<span class="file">${esc(firstLineMatch[1])}</span>`;
+        codeBody = text.slice(firstLineMatch[0].length);
+      }
+      const html = hljs.highlight(codeBody, { language }).value;
+      return `<div class="code-wrap"><div class="code-bar">${fileHeader}<span class="lang">${esc(language)}</span></div><pre class="code"><code class="hljs language-${language}">${html}</code></pre></div>\n`;
     },
     image({ href, text }) {
-      return `<figure><a href="${esc(href)}" target="_blank" rel="noopener"><img src="${esc(href)}" alt="${esc(text)}" loading="lazy"></a><figcaption>${esc(text)}</figcaption></figure>`;
+      return `<figure><a href="${esc(href)}" target="_blank" rel="noopener"><img src="${esc(href)}" alt="${esc(text)}"></a><figcaption>${esc(text)}</figcaption></figure>`;
     },
   },
 });
 
 const article = await marked.parse(
-  body.replace(VIDEO_TAG, '<figure class="video"><video src="$1" controls muted playsinline preload="metadata" poster="artifacts/verify-frames/frame-17.00.png"></video></figure>'),
+  body.replace(VIDEO_TAG, '<figure class="video"><video src="$1" controls muted playsinline preload="metadata" poster="./artifacts/verify-frames/frame-17.00.png"></video></figure>'),
 );
 const date = new Date(`${meta.date}T12:00:00Z`).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 const words = body.split(/\s+/).length;
@@ -65,17 +72,17 @@ const html = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(meta.title)} | Upstash Blog preview</title>
+<title>${esc(meta.title)} | Upstash Blog</title>
 <style>
   :root {
     --bg: #fafafa; --fg: #18181b; --muted: #71717a; --line: #e4e4e7; --soft: #f4f4f5;
-    --emerald: #059669; --emerald-600: #047857; --emerald-50: #ecfdf5; --code-bg: #18181b;
-    --font: Inter, "Geist", ui-sans-serif, system-ui, sans-serif; --mono: "Geist Mono", ui-monospace, "SF Mono", monospace;
+    --emerald: #059669; --emerald-600: #047857; --emerald-50: #ecfdf5; --code-bg: #0f1117; --code-bar: #161922;
+    --font: Inter, "Geist", ui-sans-serif, system-ui, sans-serif; --mono: "Geist Mono", "JetBrains Mono", ui-monospace, "SF Mono", monospace;
   }
   * { box-sizing: border-box; }
   html { -webkit-text-size-adjust: 100%; }
   body { margin: 0; background: var(--bg); color: var(--fg); font: 17px/1.75 var(--font); -webkit-font-smoothing: antialiased; }
-  .nav { position: sticky; top: 0; z-index: 5; background: rgb(250 250 250 / .9); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+  .nav { position: sticky; top: 0; z-index: 5; background: rgb(250 250 250 / .92); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
   .nav .in { max-width: 1120px; margin: 0 auto; padding: 14px 24px; display: flex; align-items: center; gap: 22px; font-size: 14.5px; }
   .brand { display: flex; align-items: center; gap: 9px; font-weight: 650; color: var(--fg); text-decoration: none; letter-spacing: -.01em; }
   .brand i { width: 22px; height: 22px; border-radius: 6px; background: linear-gradient(140deg, #34d399, #059669); display: block; }
@@ -101,24 +108,29 @@ const html = `<!doctype html>
   figure img, figure video { display: block; width: 100%; height: auto; border-radius: 14px; border: 1px solid var(--line); background: #fff; box-shadow: 0 1px 2px rgb(0 0 0 / .04), 0 12px 32px rgb(24 24 27 / .07); }
   figure.video video { aspect-ratio: 16 / 9; background: #f3f5f8; }
   figcaption { margin-top: 10px; font-size: 13.5px; line-height: 1.5; color: var(--muted); text-align: center; padding: 0 96px; }
-  pre.code { position: relative; margin: 22px 0; background: var(--code-bg); color: #e4e4e7; border-radius: 12px; padding: 18px 20px; overflow-x: auto; font: 13.5px/1.65 var(--mono); }
-  pre.code .lang { position: absolute; top: 8px; right: 12px; font: 600 11px var(--mono); color: #71717a; text-transform: uppercase; letter-spacing: .06em; }
+  .code-wrap { margin: 24px 0; border-radius: 12px; overflow: hidden; border: 1px solid #27272a; background: var(--code-bg); box-shadow: 0 8px 24px rgb(0 0 0 / .08); }
+  .code-bar { display: flex; align-items: center; justify-content: space-between; padding: 9px 16px; background: var(--code-bar); border-bottom: 1px solid #27272a; font: 500 12px var(--mono); color: #a1a1aa; }
+  .code-bar .file { color: #e4e4e7; font-weight: 600; }
+  .code-bar .lang { margin-left: auto; font: 600 11px var(--mono); color: #34d399; text-transform: uppercase; letter-spacing: .06em; background: rgb(16 185 129 / .12); border: 1px solid rgb(16 185 129 / .28); padding: 2px 8px; border-radius: 99px; }
+  pre.code { margin: 0; background: var(--code-bg); color: #e4e4e7; padding: 18px 20px; overflow-x: auto; font: 13.5px/1.68 var(--mono); }
   pre.code code { font: inherit; background: none; border: 0; padding: 0; color: inherit; }
-  .hljs-keyword, .hljs-built_in, .hljs-selector-tag { color: #c4b5fd; }
-  .hljs-string, .hljs-attr .hljs-string, .hljs-template-variable { color: #6ee7b7; }
-  .hljs-number, .hljs-literal { color: #fdba74; }
+  .hljs-keyword, .hljs-built_in, .hljs-selector-tag { color: #c084fc; font-weight: 500; }
+  .hljs-string, .hljs-attr .hljs-string, .hljs-template-variable { color: #34d399; }
+  .hljs-number, .hljs-literal { color: #fb923c; }
   .hljs-comment { color: #71717a; font-style: italic; }
-  .hljs-title, .hljs-title.function_ { color: #93c5fd; }
-  .hljs-attr, .hljs-property, .hljs-variable { color: #f9a8d4; }
-  .hljs-type, .hljs-params { color: #e4e4e7; }
-  .hljs-meta, .hljs-bullet { color: #fcd34d; }
+  .hljs-title, .hljs-title.function_, .hljs-title.class_ { color: #60a5fa; }
+  .hljs-attr, .hljs-property, .hljs-variable { color: #f472b6; }
+  .hljs-type, .hljs-params { color: #fcd34d; }
+  .hljs-meta, .hljs-bullet { color: #38bdf8; }
   .hljs-subst { color: #e4e4e7; }
+  .hljs-addition { color: #6ee7b7; background: rgb(16 185 129 / .14); display: inline-block; width: 100%; padding: 1px 6px; border-radius: 4px; }
+  .hljs-deletion { color: #fca5a5; background: rgb(239 68 68 / .14); display: inline-block; width: 100%; padding: 1px 6px; border-radius: 4px; }
   table { width: 100%; border-collapse: collapse; margin: 22px 0; font-size: 14.5px; line-height: 1.5; display: block; overflow-x: auto; }
   th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
   th { font-weight: 600; color: var(--fg); background: var(--soft); border-top: 1px solid var(--line); }
   td code, th code { white-space: nowrap; }
   hr { border: 0; border-top: 1px solid var(--line); margin: 48px 0; }
-  .note { max-width: 768px; margin: 0 auto; padding: 0 24px; font-size: 13px; color: var(--muted); }
+  .note { max-width: 768px; margin: 0 auto; padding: 0 24px 48px; font-size: 13px; color: var(--muted); }
   @media (max-width: 1000px) { figure { margin: 24px 0; } figcaption { padding: 0; } }
   @media (max-width: 640px) { body { font-size: 16px; } header.post { padding-top: 40px; } article h2 { font-size: 23px; } }
 </style>
@@ -134,7 +146,7 @@ const html = `<!doctype html>
 <article>
 ${article}
 </article>
-<p class="note">Preview of <code>blog-post.mdx</code> (slug <code>${esc(meta.slug)}</code>). Images and video load from this folder.</p>
+<p class="note">Preview of <code>blog-post.mdx</code> for slug <code>${esc(meta.slug)}</code>. Images and video load from <code>./artifacts/</code>.</p>
 </body>
 </html>
 `;
