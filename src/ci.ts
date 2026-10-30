@@ -8,11 +8,11 @@
 //   npx tsx src/ci.ts restore                              # box mode only
 //   npx tsx src/ci.ts serve
 //   npx tsx src/ci.ts inspect
-//   npx tsx src/ci.ts publish [--image-base <url>]
+//   npx tsx src/ci.ts publish [--image-base <url>] [--post]   # --post comments in local mode too
 //   npx tsx src/ci.ts cleanup
 import { Box } from "@upstash/box";
 import { spawn, execFileSync } from "node:child_process";
-import { appendFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { openSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { z } from "zod";
@@ -28,10 +28,12 @@ import {
   writeVerdict,
   BRANCHES,
   BranchRunShape,
+  saveRecording,
 } from "./box-stages.js";
 import { EnvSchema, requireSnapshot, type Env } from "./env.js";
 import { fetchPullRequest, PullRequestPayload, PullRequestRefSchema, toPullRequestRef, upsertComment, type PullRequestRef } from "./github.js";
 import { inspectLocally } from "./local-inspect.js";
+import { recordComparison, RECORDING_FILES } from "./recording.js";
 import { consoleLog as log } from "./pr-visual-tester.js";
 import { renderComment, ruleBasedVerdict, type Screenshots } from "./report.js";
 
@@ -189,15 +191,16 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
         },
         shots: { before: inspected.before.shots, after: inspected.after.shots },
       });
+      await saveRecording({ box, dir: OUT, log }).catch((err: unknown) => log(`no recording: ${String(err)}`));
       await writeState({ ...state, spend, verdict: { ...verdict, by: verdictBy }, checkedIn: `Upstash Box \`${box.id}\`` });
       return;
     }
-    const runs = await inspectLocally({
+    const previews = {
       before: { label: state.pr.baseRef, url: `http://127.0.0.1:3000${PREVIEW_PATH}` },
       after: { label: `PR #${state.pr.number}`, url: `http://127.0.0.1:3001${PREVIEW_PATH}` },
-      dir: OUT,
-      log,
-    });
+    };
+    const runs = await inspectLocally({ ...previews, dir: OUT, log });
+    await recordComparison({ ...previews, dir: OUT, log }).catch((err: unknown) => log(`no recording: ${String(err)}`));
     const verdict = ruleBasedVerdict(runs);
     log(`rule-based verdict: ${verdict.status.toUpperCase()} "${verdict.headline}"`);
     await writeFile(
@@ -221,7 +224,8 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
     const { before, after } = SavedRuns.parse(JSON.parse(await readFile(join(OUT, "inspection.json"), "utf8")));
 
     let shots: Screenshots;
-    if (imageBase) shots = screenshotsAt(imageBase);
+    const hasRecording = await stat(join(OUT, RECORDING_FILES.gif)).then(() => true, () => false);
+    if (imageBase) shots = screenshotsAt(imageBase, { withRecording: hasRecording });
     else if (state.mode === "box" && process.env.UPSTASH_BLOB_TOKEN) {
       shots = await uploadScreenshots({ dir: OUT, pr: state.pr, token: process.env.UPSTASH_BLOB_TOKEN });
       log("uploaded 4 screenshots to Upstash Blob");
@@ -244,8 +248,9 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
       await appendFile(process.env.GITHUB_STEP_SUMMARY, `${body}\n`);
       log("wrote the review to the job summary");
     }
-    if (state.mode === "box") {
-      const env = boxEnv();
+    // Box mode always comments. Local mode comments only when asked, e.g. from a terminal.
+    if (state.mode === "box" || args.includes("--post")) {
+      const env = state.mode === "box" ? boxEnv() : { ...LocalEnv.parse(process.env), GITHUB_BOT_LOGIN: z.string().parse(process.env.GITHUB_BOT_LOGIN) };
       await upsertComment({ token: env.GITHUB_TOKEN, botLogin: env.GITHUB_BOT_LOGIN, pr: state.pr, body });
       log(`posted the visual review on ${state.pr.owner}/${state.pr.repo}#${state.pr.number}`);
     }

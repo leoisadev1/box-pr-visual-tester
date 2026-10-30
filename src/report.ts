@@ -21,6 +21,8 @@ export interface ScreenshotUrls {
   afterMobile: string;
   beforeDesktop: string;
   afterDesktop: string;
+  /** Side-by-side recording of the mobile flow. The GIF plays inline; the MP4 is linked. */
+  recording: { gif: string; mp4: string } | null;
 }
 
 /** Inline images when they have public URLs, otherwise a link to where the PNGs were attached. */
@@ -173,18 +175,28 @@ export function renderComment({
   switch (shots.kind) {
     case "urls":
       mobileShots = [
+        ...(shots.recording
+          ? [
+              "### Recording, mobile 390x844",
+              "",
+              `Left: \`${before.label}\`. Right: \`${after.label}\`. [Download the MP4](${shots.recording.mp4})`,
+              "",
+              `<img src="${shots.recording.gif}" width="760" alt="Recording of the checkout flow on ${before.label} and ${after.label}">`,
+              "",
+            ]
+          : []),
+        "### Before and after, mobile 390x844",
+        "",
         `| Before: \`${before.label}\` | After: \`${after.label}\` |`,
         "| --- | --- |",
         `| <img src="${shots.beforeMobile}" width="300" alt="Before, mobile"> | <img src="${shots.afterMobile}" width="300" alt="After, mobile"> |`,
       ];
       desktopShots = [
-        "<details><summary>Desktop screenshots</summary>",
+        "### Before and after, desktop 1440x900",
         "",
-        "| Before | After |",
+        `| Before: \`${before.label}\` | After: \`${after.label}\` |`,
         "| --- | --- |",
         `| <img src="${shots.beforeDesktop}" width="420" alt="Before, desktop"> | <img src="${shots.afterDesktop}" width="420" alt="After, desktop"> |`,
-        "",
-        "</details>",
       ];
       break;
     case "attached":
@@ -206,6 +218,7 @@ export function renderComment({
     "",
     ...mobileShots,
     "",
+    ...(desktopShots.length > 0 ? [...desktopShots, ""] : []),
     `### ${verdictBy} verdict`,
     "",
     `**${verdict.headline}**`,
@@ -231,7 +244,5 @@ export function renderComment({
           "",
         ]
       : []),
-    ...desktopShots,
-    "",
   ].join("\n");
 }

@@ -3,11 +3,12 @@
 import { Agent, Box, BoxApiKey, ClaudeCode, type Run, type Tab } from "@upstash/box";
 import { Bucket } from "@upstash/blob";
 import { chromium, type Browser, type CDPSession, type Page } from "playwright-core";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
 import type { Env } from "./env.js";
 import type { PullRequestRef } from "./github.js";
+import { RECORDING_FILES, writeGif } from "./recording.js";
 import { annotate, inspectCheckout, VIEWPORTS, type Viewport, type ViewportName } from "./probe.js";
 import {
   buildVerdictPrompt,
@@ -299,6 +300,8 @@ export async function inspectPreviews({
   log: Log;
 }): Promise<Record<BranchKey, BranchInspection>> {
   const browser = await chromium.connectOverCDP(await box.browser.cdpUrl());
+  // Box Browser records the whole session (all tabs) to MP4 on the box side.
+  const recording = await box.browser.recordings.start({ maxDurationSeconds: 300 });
   try {
     const [base, head] = BRANCHES;
     return {
@@ -307,7 +310,20 @@ export async function inspectPreviews({
     };
   } finally {
     await browser.close();
+    lastRecordingId = (await recording.stop()).id;
   }
+}
+
+let lastRecordingId: string | null = null;
+
+/** Downloads the session recording from the last `inspectPreviews` call into `dir` as MP4 and GIF. */
+export async function saveRecording({ box, dir, log }: { box: Box; dir: string; log: Log }): Promise<boolean> {
+  if (!lastRecordingId) return false;
+  const mp4 = join(dir, RECORDING_FILES.mp4);
+  await box.browser.recordings.download(lastRecordingId, { path: mp4 });
+  await writeGif({ mp4, gif: join(dir, RECORDING_FILES.gif) });
+  log(`downloaded Box Browser recording ${lastRecordingId} -> ${RECORDING_FILES.mp4}, ${RECORDING_FILES.gif}`);
+  return true;
 }
 
 /** Claude Code in the box writes the verdict from the measurements; rules take over if it fails. */
@@ -366,7 +382,7 @@ export const SHOT_FILES = {
   afterMobile: "after-mobile.png",
   beforeDesktop: "before-desktop.png",
   afterDesktop: "after-desktop.png",
-} as const satisfies Record<keyof Omit<ScreenshotUrls, "kind">, string>;
+} as const satisfies Record<keyof Omit<ScreenshotUrls, "kind" | "recording">, string>;
 
 export async function saveInspection({
   dir,
@@ -390,10 +406,11 @@ export async function loadInspection(dir: string): Promise<InspectionFile> {
 }
 
 /** Screenshot URLs under a fixed base, such as raw.githubusercontent.com for a committed folder. */
-export function screenshotsAt(base: string): ScreenshotUrls {
+export function screenshotsAt(base: string, { withRecording = false }: { withRecording?: boolean } = {}): ScreenshotUrls {
   const at = (file: string) => `${base.replace(/\/$/, "")}/${file}`;
   return {
     kind: "urls",
+    recording: withRecording ? { gif: at(RECORDING_FILES.gif), mp4: at(RECORDING_FILES.mp4) } : null,
     beforeMobile: at(SHOT_FILES.beforeMobile),
     afterMobile: at(SHOT_FILES.afterMobile),
     beforeDesktop: at(SHOT_FILES.beforeDesktop),
@@ -404,16 +421,20 @@ export function screenshotsAt(base: string): ScreenshotUrls {
 /** Uploads the four PNGs in `dir` to a public Upstash Blob bucket, keyed by the head SHA. */
 export async function uploadScreenshots({ dir, pr, token }: { dir: string; pr: PullRequestRef; token: string }): Promise<ScreenshotUrls> {
   const bucket = new Bucket({ token });
-  const put = async (file: string): Promise<string> => {
+  const put = async (file: string, contentType = "image/png"): Promise<string> => {
     const blob = await bucket.put(`visual-qa/${pr.repo}/pr-${pr.number}/${pr.headSha}/${file}`, await readFile(join(dir, file)), {
-      contentType: "image/png",
+      contentType,
       cache: "immutable",
     });
     if (!blob.url) throw new Error("The Blob bucket is private. GitHub needs public image URLs; make the bucket public.");
     return blob.url;
   };
+  const hasRecording = await stat(join(dir, RECORDING_FILES.mp4)).then(() => true, () => false);
   return {
     kind: "urls",
+    recording: hasRecording
+      ? { gif: await put(RECORDING_FILES.gif, "image/gif"), mp4: await put(RECORDING_FILES.mp4, "video/mp4") }
+      : null,
     beforeMobile: await put(SHOT_FILES.beforeMobile),
     afterMobile: await put(SHOT_FILES.afterMobile),
     beforeDesktop: await put(SHOT_FILES.beforeDesktop),
