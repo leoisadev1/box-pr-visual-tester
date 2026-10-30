@@ -71,7 +71,7 @@
 <header class="post">
   <a class="crumb" href="#">Blog</a>
   <h1 class="title">Visual QA for Every Pull Request with Upstash Box Browser</h1>
-  <div class="byline"><img src="assets/leodev.png" alt=""><div><b>Leo</b>@leodev | October 28, 2026 | 9 min read</div></div>
+  <div class="byline"><img src="assets/leodev.png" alt=""><div><b>Leo</b>@leodev | October 28, 2026 | 11 min read</div></div>
   <div class="tags"><span>box</span><span>ai</span><span>browser</span><span>github</span><span>playwright</span><span>testing</span></div>
 </header>
 <article>
@@ -79,8 +79,9 @@
 <p>A two-line CSS change in a dialog can push the submit button below the fold on a phone screen while every unit test still passes. Even with separate worktrees ready on disk, reviewing ten pull requests by hand means starting two dev servers on different ports, opening both in a browser, resizing DevTools to a mobile viewport, and clicking through the flow yourself.</p>
 <p>I wanted every pull request on GitHub to get that before-and-after browser check automatically. When you pass <code>browser: true</code> to <a href="https://upstash.com/docs/box/overall/browser/overview">Upstash Box</a>, the container boots with a managed Chromium instance next to its shell, filesystem, Git checkout, and coding agent. A single Box can restore from a warm snapshot, run <code>main</code> on <code>:3000</code> and the pull request branch on <code>:3001</code>, inspect both in Chromium, upload screenshots to <a href="https://upstash.com/docs/blob/overall/quickstart">Upstash Blob</a>, and post a visual review comment on the pull request.</p>
 <p><figure><a href="./artifacts/01-hero-pr-overview.png" target="_blank" rel="noopener"><img src="./artifacts/01-hero-pr-overview.png" alt="Pull request #1 on GitHub showing the two-line layout diff in app/billing/index.html"></a><figcaption>Pull request #1 on GitHub showing the two-line layout diff in app/billing/index.html</figcaption></figure></p>
-<p>Here is a 28-second recording of a full run against <a href="https://github.com/leoisadev1/box-pr-visual-tester/pull/1">PR #1 in <code>leoisadev1/box-pr-visual-tester</code></a>:</p>
-<figure class="video"><video src="./artifacts/box-pr-tester-demo.mp4" controls muted playsinline preload="metadata" poster="./artifacts/verify-frames/frame-17.00.png"></video></figure><p>The full source code, GitHub Actions workflow, and captured artifacts are in <a href="https://github.com/leoisadev1/box-pr-visual-tester"><code>leoisadev1/box-pr-visual-tester</code></a>.</p>
+<p>Here is a 28-second walkthrough of the flow on <a href="https://github.com/leoisadev1/box-pr-visual-tester/pull/1">PR #1 in <code>leoisadev1/box-pr-visual-tester</code></a>:</p>
+<figure class="video"><video src="./artifacts/box-pr-tester-demo.mp4" controls muted playsinline preload="metadata" poster="./artifacts/stills/pr-comment-recording-playing.png"></video></figure><p>The recording, screenshots, and pixel measurements in the video are the real ones from PR #1. The box ID, snapshot ID, restore time, and cost in it are example values, and the job log shows what box mode prints.</p>
+<p>The full source code, GitHub Actions workflow, and captured artifacts are in <a href="https://github.com/leoisadev1/box-pr-visual-tester"><code>leoisadev1/box-pr-visual-tester</code></a>.</p>
 <hr>
 <h2>Visual QA options in Upstash Box Browser</h2>
 <p>Enabling <code>browser: true</code> on <code>Box.create</code> or <code>Box.fromSnapshot</code> gives you five ways to drive Chromium and inspect a live page. All of them operate on the same browser instance inside the Box, so you can use one or combine them in a single test run.</p>
@@ -115,7 +116,7 @@
 <tr>
 <td>In-box coding agent</td>
 <td><code>box.agent.run({ prompt, responseSchema })</code></td>
-<td>Running Claude Code, Codex, or OpenCode inside the Box with the <code>chrome-devtools</code> MCP wired in</td>
+<td>Running Claude Code, Codex, or OpenCode inside the Box next to the browser</td>
 </tr>
 </tbody></table>
 <p>Here is how those calls work together on a single tab:</p>
@@ -162,10 +163,11 @@
 <hr>
 <h2>The bug that terminal checks miss</h2>
 <p>On the <code>/billing/</code> page of our demo app, clicking <strong>Upgrade Plan</strong> opens the <code>#checkout</code> modal. On <code>main</code>, the <code>#checkout</code> container uses <code>fixed inset-x-4 top-12</code> without a height cap or scroll container, and the footer uses a static <code>&lt;div class=&quot;modal-foot&quot;&gt;</code>.</p>
-<p>On a <code>1440x900</code> desktop monitor, the modal fits with room to spare on both branches:</p>
-<p><figure><a href="./artifacts/05-box-browser-desktop-comparison.png" target="_blank" rel="noopener"><img src="./artifacts/05-box-browser-desktop-comparison.png" alt="Desktop 1440x900 comparison showing both main and PR #1 passing with 100% button visibility"></a><figcaption>Desktop 1440x900 comparison showing both main and PR #1 passing with 100% button visibility</figcaption></figure></p>
-<p>On a <code>390x844</code> mobile viewport, the modal overflows the screen on <code>main</code> and pushes the <strong>Confirm upgrade</strong> button below the bottom edge:</p>
-<p><figure><a href="./artifacts/06-box-browser-mobile-regression.png" target="_blank" rel="noopener"><img src="./artifacts/06-box-browser-mobile-regression.png" alt="Mobile 390x844 comparison showing the clipped Confirm upgrade button on main versus the visible button on PR #1"></a><figcaption>Mobile 390x844 comparison showing the clipped Confirm upgrade button on main versus the visible button on PR #1</figcaption></figure></p>
+<p>On a <code>390x844</code> mobile viewport, the modal overflows the screen on <code>main</code> and pushes the <strong>Confirm upgrade</strong> button below the bottom edge. Here is the review the tester posted on <a href="https://github.com/leoisadev1/box-pr-visual-tester/pull/1#issuecomment-6477831685">PR #1</a>, with a recording of the flow on both branches and the mobile before-and-after screenshots. <code>main</code> is on the left:</p>
+<p><figure><a href="./artifacts/08-github-pr-comment-live.png" target="_blank" rel="noopener"><img src="./artifacts/08-github-pr-comment-live.png" alt="The visual review comment on PR #1: a side-by-side recording of the checkout flow on main and PR #1, then the mobile before-and-after screenshots"></a><figcaption>The visual review comment on PR #1: a side-by-side recording of the checkout flow on main and PR #1, then the mobile before-and-after screenshots</figcaption></figure></p>
+<p>On a <code>1440x900</code> desktop monitor, the modal fits with room to spare on both branches, which is why this bug survives a review on a laptop. The same comment continues with the desktop screenshots and the measured numbers:</p>
+<p><figure><a href="./artifacts/09-github-pr-comment-details.png" target="_blank" rel="noopener"><img src="./artifacts/09-github-pr-comment-details.png" alt="The rest of the comment: desktop before-and-after screenshots where both branches pass, the verdict, and the DOM metrics table"></a><figcaption>The rest of the comment: desktop before-and-after screenshots where both branches pass, the verdict, and the DOM metrics table</figcaption></figure></p>
+<p>That run used the repo&#39;s local Chromium mode, because the demo repo has no Box key configured yet. It runs the same probe in Chromium on the machine instead of in Box Browser, so the comment carries a rule-based verdict and no cost line. A run inside a Box adds Claude Code&#39;s verdict and the run cost.</p>
 <p>On <code>main</code> at <code>390x844</code>, <code>getBoundingClientRect()</code> on <code>#confirm</code> reports <code>top: 861.5px</code> and <code>bottom: 910px</code>. The button ends <code>66px</code> below the <code>844px</code> fold with <code>0%</code> of the button visible on screen, so attempting to submit the form times out.</p>
 <p>Pull request #1 fixes the modal in <code>app/billing/index.html</code> with two class updates:</p>
 <div class="code-wrap"><div class="code-bar"><span class="file">app/billing/index.html</span><span class="lang">diff</span></div><pre class="code"><code class="hljs language-diff"><span class="hljs-deletion">- &lt;div id=&quot;checkout&quot; class=&quot;modal fixed inset-x-4 top-12&quot; role=&quot;dialog&quot; aria-modal=&quot;true&quot; aria-labelledby=&quot;checkout-title&quot; hidden&gt;</span>
@@ -206,9 +208,10 @@
 <p>Run <code>src/create-snapshot.ts</code> once and save the printed <code>BOX_SNAPSHOT_ID</code> in your repository secrets:</p>
 <div class="code-wrap"><div class="code-bar"><span class="file">terminal.sh</span><span class="lang">bash</span></div><pre class="code"><code class="hljs language-bash">npx tsx src/create-snapshot.ts https://github.com/leoisadev1/box-pr-visual-tester</code></pre></div>
 <p><figure><a href="./artifacts/03-snapshot-creation-terminal.png" target="_blank" rel="noopener"><img src="./artifacts/03-snapshot-creation-terminal.png" alt="Terminal output of create-snapshot.ts creating a small Node box with browser: true and printing BOX_SNAPSHOT_ID"></a><figcaption>Terminal output of create-snapshot.ts creating a small Node box with browser: true and printing BOX_SNAPSHOT_ID</figcaption></figure></p>
+<p>This is the format the script prints. The box ID, snapshot ID, size, and timings in it are examples; yours will differ.</p>
 <hr>
 <h2>Step 2. Restore the Box and boot <code>main</code> and the PR side by side</h2>
-<p>When a pull request opens or updates, <code>Box.fromSnapshot()</code> restores a fresh container from that snapshot. Inside the Box, we clone the base branch into <code>/workspace/box/main</code> on port <code>3000</code> and the pull request branch into <code>/workspace/box/pr</code> on port <code>3001</code>. Both checkouts pin the exact commit SHAs from the pull request event.</p>
+<p>When a pull request opens or updates, <code>Box.fromSnapshot()</code> restores a fresh container from that snapshot. Inside the Box, we clone the base branch into <code>/workspace/home/main</code> on port <code>3000</code> and the pull request branch into <code>/workspace/home/pr</code> on port <code>3001</code>. Both checkouts pin the exact commit SHAs from the pull request event.</p>
 <div class="code-wrap"><div class="code-bar"><span class="file">src/box-stages.ts</span><span class="lang">typescript</span></div><pre class="code"><code class="hljs language-typescript"><span class="hljs-keyword">export</span> <span class="hljs-keyword">const</span> <span class="hljs-variable constant_">BRANCHES</span> = [
   { <span class="hljs-attr">key</span>: <span class="hljs-string">&quot;before&quot;</span>, <span class="hljs-attr">folder</span>: <span class="hljs-string">&quot;main&quot;</span>, <span class="hljs-attr">port</span>: <span class="hljs-number">3000</span> },
   { <span class="hljs-attr">key</span>: <span class="hljs-string">&quot;after&quot;</span>, <span class="hljs-attr">folder</span>: <span class="hljs-string">&quot;pr&quot;</span>, <span class="hljs-attr">port</span>: <span class="hljs-number">3001</span> },
@@ -238,12 +241,16 @@
   });
 
   <span class="hljs-keyword">await</span> box.<span class="hljs-title function_">cd</span>(branch.<span class="hljs-property">folder</span>);
-  <span class="hljs-keyword">await</span> box.<span class="hljs-property">exec</span>.<span class="hljs-title function_">command</span>(<span class="hljs-string">`git fetch --depth 1 origin <span class="hljs-subst">${sha}</span> &amp;&amp; git checkout --detach <span class="hljs-subst">${sha}</span>`</span>);
+  <span class="hljs-keyword">await</span> box.<span class="hljs-property">exec</span>.<span class="hljs-title function_">command</span>(
+    <span class="hljs-string">`git fetch --depth 1 origin <span class="hljs-subst">${sha}</span> &amp;&amp; git checkout --detach <span class="hljs-subst">${sha}</span>`</span>,
+  );
   <span class="hljs-keyword">await</span> box.<span class="hljs-property">exec</span>.<span class="hljs-title function_">command</span>(<span class="hljs-string">&quot;npm ci --prefer-offline --no-audit --no-fund&quot;</span>);
-  <span class="hljs-keyword">await</span> box.<span class="hljs-property">exec</span>.<span class="hljs-title function_">command</span>(<span class="hljs-string">`PORT=<span class="hljs-subst">${branch.port}</span> nohup npm start &gt; /tmp/<span class="hljs-subst">${branch.folder}</span>.log 2&gt;&amp;1 &amp;`</span>);
+  <span class="hljs-keyword">await</span> box.<span class="hljs-property">exec</span>.<span class="hljs-title function_">command</span>(
+    <span class="hljs-string">`PORT=<span class="hljs-subst">${branch.port}</span> nohup npm start &gt; /tmp/<span class="hljs-subst">${branch.folder}</span>.log 2&gt;&amp;1 &amp;`</span>,
+  );
   <span class="hljs-keyword">await</span> box.<span class="hljs-title function_">cd</span>(<span class="hljs-string">&quot;..&quot;</span>);
 }</code></pre></div>
-<p>Running both branches inside the same Box eliminates clock skew, font differences, and network jitter between the baseline and the pull request preview.</p>
+<p>Running both branches inside the same Box means the baseline and the pull request render with the same fonts, the same Chromium, and the same machine.</p>
 <hr>
 <h2>Step 3. Inspect both branches with Box Browser</h2>
 <p>Once <code>localhost:3000</code> and <code>localhost:3001</code> respond, <code>inspectPreviews()</code> connects to the Box&#39;s Chromium instance. Each branch is opened with <code>box.browser.tab.create()</code>, clicked with <code>tab.act()</code>, measured at <code>390x844</code> and <code>1440x900</code> over <code>box.browser.cdpUrl()</code>, cross-checked with <code>tab.extract()</code>, and captured with <code>tab.screenshot()</code>.</p>
@@ -256,13 +263,22 @@
   <span class="hljs-attr">validationMessage</span>: z.<span class="hljs-title function_">string</span>().<span class="hljs-title function_">nullable</span>(),
 });
 
-<span class="hljs-keyword">async</span> <span class="hljs-keyword">function</span> <span class="hljs-title function_">inspectBranch</span>(<span class="hljs-params"><span class="hljs-attr">box</span>: <span class="hljs-title class_">Box</span>, <span class="hljs-attr">browser</span>: <span class="hljs-title class_">Browser</span>, <span class="hljs-attr">url</span>: <span class="hljs-built_in">string</span>, <span class="hljs-attr">label</span>: <span class="hljs-built_in">string</span></span>) {
+<span class="hljs-keyword">async</span> <span class="hljs-keyword">function</span> <span class="hljs-title function_">inspectBranch</span>(<span class="hljs-params">
+  <span class="hljs-attr">box</span>: <span class="hljs-title class_">Box</span>,
+  <span class="hljs-attr">browser</span>: <span class="hljs-title class_">Browser</span>,
+  <span class="hljs-attr">url</span>: <span class="hljs-built_in">string</span>,
+  <span class="hljs-attr">label</span>: <span class="hljs-built_in">string</span>,
+</span>) {
   <span class="hljs-keyword">const</span> tab = <span class="hljs-keyword">await</span> box.<span class="hljs-property">browser</span>.<span class="hljs-property">tab</span>.<span class="hljs-title function_">create</span>(url, { <span class="hljs-attr">waitUntil</span>: <span class="hljs-string">&quot;networkidle&quot;</span> });
-  <span class="hljs-keyword">const</span> page = browser.<span class="hljs-title function_">contexts</span>().<span class="hljs-title function_">flatMap</span>(<span class="hljs-function">(<span class="hljs-params">c</span>) =&gt;</span> c.<span class="hljs-title function_">pages</span>()).<span class="hljs-title function_">find</span>(<span class="hljs-function">(<span class="hljs-params">p</span>) =&gt;</span> p.<span class="hljs-title function_">url</span>().<span class="hljs-title function_">startsWith</span>(url))!;
+  <span class="hljs-keyword">const</span> page = browser
+    .<span class="hljs-title function_">contexts</span>()
+    .<span class="hljs-title function_">flatMap</span>(<span class="hljs-function">(<span class="hljs-params">c</span>) =&gt;</span> c.<span class="hljs-title function_">pages</span>())
+    .<span class="hljs-title function_">find</span>(<span class="hljs-function">(<span class="hljs-params">p</span>) =&gt;</span> p.<span class="hljs-title function_">url</span>().<span class="hljs-title function_">startsWith</span>(url))!;
 
   <span class="hljs-keyword">const</span> <span class="hljs-title function_">openCheckout</span> = <span class="hljs-keyword">async</span> (<span class="hljs-params"></span>) =&gt; {
     <span class="hljs-keyword">const</span> action = <span class="hljs-keyword">await</span> tab.<span class="hljs-title function_">act</span>(<span class="hljs-string">&quot;Click the Upgrade Plan button&quot;</span>);
-    <span class="hljs-keyword">if</span> (!action.<span class="hljs-property">success</span>) <span class="hljs-keyword">await</span> page.<span class="hljs-title function_">getByRole</span>(<span class="hljs-string">&quot;button&quot;</span>, { <span class="hljs-attr">name</span>: <span class="hljs-string">&quot;Upgrade Plan&quot;</span> }).<span class="hljs-title function_">click</span>();
+    <span class="hljs-keyword">if</span> (!action.<span class="hljs-property">success</span>)
+      <span class="hljs-keyword">await</span> page.<span class="hljs-title function_">getByRole</span>(<span class="hljs-string">&quot;button&quot;</span>, { <span class="hljs-attr">name</span>: <span class="hljs-string">&quot;Upgrade Plan&quot;</span> }).<span class="hljs-title function_">click</span>();
   };
 
   <span class="hljs-keyword">const</span> <span class="hljs-attr">shots</span>: <span class="hljs-title class_">Record</span>&lt;<span class="hljs-built_in">string</span>, <span class="hljs-title class_">Uint8Array</span>&gt; = {};
@@ -292,7 +308,7 @@
   <span class="hljs-keyword">await</span> tab.<span class="hljs-title function_">close</span>();
   <span class="hljs-keyword">return</span> { <span class="hljs-attr">run</span>: { label, reports }, shots, agentRead };
 }</code></pre></div>
-<p>Here is the terminal output showing both branches serving on <code>:3000</code> and <code>:3001</code> and the four viewport checks running against pinned SHAs <code>846a88c</code> and <code>2a94f48</code>:</p>
+<p>Here is the step runner from the repo running against PR #1, with both branches serving on <code>:3000</code> and <code>:3001</code> and the four viewport checks running against pinned SHAs <code>846a88c</code> and <code>2a94f48</code>. The demo repo has no Box key configured yet, so this run used the repo&#39;s local Chromium mode: the same probe, run in Chromium on the machine instead of in Box Browser. The recording and screenshots in the comment above come from the same run.</p>
 <p><figure><a href="./artifacts/04-dual-server-boot-terminal.png" target="_blank" rel="noopener"><img src="./artifacts/04-dual-server-boot-terminal.png" alt="Terminal output showing main on port 3000 and PR #1 on port 3001 with mobile and desktop inspection results"></a><figcaption>Terminal output showing main on port 3000 and PR #1 on port 3001 with mobile and desktop inspection results</figcaption></figure></p>
 <hr>
 <h2>Step 4. Generate a typed verdict with <code>box.agent.run</code> and upload screenshots to Upstash Blob</h2>
@@ -304,11 +320,19 @@
   <span class="hljs-attr">status</span>: z.<span class="hljs-title function_">enum</span>([<span class="hljs-string">&quot;pass&quot;</span>, <span class="hljs-string">&quot;fail&quot;</span>]),
   <span class="hljs-attr">headline</span>: z.<span class="hljs-title function_">string</span>().<span class="hljs-title function_">describe</span>(<span class="hljs-string">&quot;One sentence, under 90 characters.&quot;</span>),
   <span class="hljs-attr">summary</span>: z.<span class="hljs-title function_">string</span>().<span class="hljs-title function_">describe</span>(<span class="hljs-string">&quot;Two or three sentences a reviewer can act on.&quot;</span>),
-  <span class="hljs-attr">regressions</span>: z.<span class="hljs-title function_">array</span>(z.<span class="hljs-title function_">string</span>()).<span class="hljs-title function_">describe</span>(<span class="hljs-string">&quot;Problems the PR introduces. Empty when there are none.&quot;</span>),
+  <span class="hljs-attr">regressions</span>: z
+    .<span class="hljs-title function_">array</span>(z.<span class="hljs-title function_">string</span>())
+    .<span class="hljs-title function_">describe</span>(<span class="hljs-string">&quot;Problems the PR introduces. Empty when there are none.&quot;</span>),
 });
 
 <span class="hljs-keyword">const</span> run = <span class="hljs-keyword">await</span> box.<span class="hljs-property">agent</span>.<span class="hljs-title function_">run</span>({
-  <span class="hljs-attr">prompt</span>: <span class="hljs-title function_">buildVerdictPrompt</span>({ <span class="hljs-attr">prNumber</span>: pr.<span class="hljs-property">number</span>, <span class="hljs-attr">title</span>: pr.<span class="hljs-property">title</span>, before, after, agentRead }),
+  <span class="hljs-attr">prompt</span>: <span class="hljs-title function_">buildVerdictPrompt</span>({
+    <span class="hljs-attr">prNumber</span>: pr.<span class="hljs-property">number</span>,
+    <span class="hljs-attr">title</span>: pr.<span class="hljs-property">title</span>,
+    before,
+    after,
+    agentRead,
+  }),
   <span class="hljs-attr">responseSchema</span>: <span class="hljs-title class_">VerdictSchema</span>,
   <span class="hljs-attr">timeout</span>: <span class="hljs-number">120_000</span>,
 });
@@ -330,13 +354,13 @@
 
 <span class="hljs-attr">jobs:</span>
   <span class="hljs-attr">visual-qa:</span>
-    <span class="hljs-attr">runs-on:</span> <span class="hljs-string">ubuntu-latest</span>
+    <span class="hljs-attr">runs-on:</span> <span class="hljs-string">ubuntu-24.04</span>
     <span class="hljs-attr">permissions:</span>
       <span class="hljs-attr">contents:</span> <span class="hljs-string">read</span>
       <span class="hljs-attr">pull-requests:</span> <span class="hljs-string">write</span>
     <span class="hljs-attr">steps:</span>
-      <span class="hljs-bullet">-</span> <span class="hljs-attr">uses:</span> <span class="hljs-string">actions/checkout@v4</span>
-      <span class="hljs-bullet">-</span> <span class="hljs-attr">uses:</span> <span class="hljs-string">actions/setup-node@v4</span>
+      <span class="hljs-bullet">-</span> <span class="hljs-attr">uses:</span> <span class="hljs-string">actions/checkout@v7</span>
+      <span class="hljs-bullet">-</span> <span class="hljs-attr">uses:</span> <span class="hljs-string">actions/setup-node@v7</span>
         <span class="hljs-attr">with:</span>
           <span class="hljs-attr">node-version:</span> <span class="hljs-number">22</span>
           <span class="hljs-attr">cache:</span> <span class="hljs-string">npm</span>
@@ -348,47 +372,14 @@
           <span class="hljs-attr">BOX_SNAPSHOT_ID:</span> <span class="hljs-string">${{</span> <span class="hljs-string">secrets.BOX_SNAPSHOT_ID</span> <span class="hljs-string">}}</span>
           <span class="hljs-attr">GITHUB_TOKEN:</span> <span class="hljs-string">${{</span> <span class="hljs-string">secrets.GITHUB_TOKEN</span> <span class="hljs-string">}}</span>
         <span class="hljs-attr">run:</span> <span class="hljs-string">npx</span> <span class="hljs-string">tsx</span> <span class="hljs-string">src/pr-visual-tester.ts</span> <span class="hljs-string">run</span> <span class="hljs-string">&quot;$<span class="hljs-template-variable">{{ github.repository }}</span>&quot;</span> <span class="hljs-string">&quot;$<span class="hljs-template-variable">{{ github.event.pull_request.number }}</span>&quot;</span></code></pre></div>
-<p><figure><a href="./artifacts/07-github-actions-workflow-run.png" target="_blank" rel="noopener"><img src="./artifacts/07-github-actions-workflow-run.png" alt="GitHub Actions workflow run for PR #1 completing in 50 seconds"></a><figcaption>GitHub Actions workflow run for PR #1 completing in 50 seconds</figcaption></figure></p>
-<p>Here is the live comment posted on <a href="https://github.com/leoisadev1/box-pr-visual-tester/pull/1#issuecomment-4342322585"><code>leoisadev1/box-pr-visual-tester#1</code></a>:</p>
-<p><figure><a href="./artifacts/08-github-pr-comment-live.png" target="_blank" rel="noopener"><img src="./artifacts/08-github-pr-comment-live.png" alt="Live GitHub comment on PR #1 showing the before-and-after mobile screenshots, verdict, and DOM metrics table"></a><figcaption>Live GitHub comment on PR #1 showing the before-and-after mobile screenshots, verdict, and DOM metrics table</figcaption></figure></p>
+<p>The workflow in the repo splits this into separate steps and falls back to local Chromium when the Box secrets are missing, so pull requests from forks still get a check. Here is its run on PR #1. &quot;Restore Box from snapshot&quot; is skipped because the demo repo has no Box secrets yet:</p>
+<p><figure><a href="./artifacts/07-github-actions-workflow-run.png" target="_blank" rel="noopener"><img src="./artifacts/07-github-actions-workflow-run.png" alt="GitHub Actions workflow run for PR #1 with every step green and the Box restore step skipped"></a><figcaption>GitHub Actions workflow run for PR #1 with every step green and the Box restore step skipped</figcaption></figure></p>
+<p>The comment shown earlier is that output, live on <a href="https://github.com/leoisadev1/box-pr-visual-tester/pull/1#issuecomment-6477831685"><code>leoisadev1/box-pr-visual-tester#1</code></a>. The recording sits in it as a GIF next to a link to the MP4, because GitHub only plays inline video that was uploaded through its own editor and strips <code>&lt;video&gt;</code> tags that point anywhere else. In box mode the recording comes from <code>box.browser.recordings.start()</code>; in local mode the tester records the mobile flow on both branches with Playwright and stitches the two clips side by side.</p>
 <hr>
-<h2>What a single PR run costs</h2>
-<p>Every call in <code>box-stages.ts</code> records the wall-clock command time and agent spend returned by <code>Run.cost</code>, plus the token count from <code>tab.act()</code> and <code>tab.extract()</code>.</p>
-<table>
-<thead>
-<tr>
-<th>Stage</th>
-<th>Pricing basis</th>
-<th>Cost per PR run</th>
-</tr>
-</thead>
-<tbody><tr>
-<td><code>Box.fromSnapshot</code> restore and dual-branch boot</td>
-<td>Active CPU only at <code>$0.10</code> per CPU-hour on <code>small</code></td>
-<td><code>~$0.0004</code> for <code>15s</code> of active CPU</td>
-</tr>
-<tr>
-<td>Box Browser inspection across both branches</td>
-<td><code>tab.act</code> and <code>tab.extract</code> token usage plus local CDP</td>
-<td><code>~$0.01</code> for <code>~3,400</code> browser tokens</td>
-</tr>
-<tr>
-<td><code>box.agent.run</code> with <code>ClaudeCode.Sonnet_4_5</code></td>
-<td>Structured Zod verdict from the measured DOM reports</td>
-<td><code>~$0.025</code> to <code>$0.05</code> per verdict</td>
-</tr>
-<tr>
-<td>Upstash Blob upload + GitHub comment upsert</td>
-<td>4 annotated PNGs stored with immutable caching</td>
-<td><code>&lt; $0.0001</code></td>
-</tr>
-<tr>
-<td><strong>Total per PR push</strong></td>
-<td><strong><code>box.delete()</code> runs inside <code>finally</code></strong></td>
-<td><strong><code>~$0.035</code> to <code>$0.06</code> total</strong></td>
-</tr>
-</tbody></table>
-<p>Because <code>box.delete()</code> runs inside the <code>finally</code> block as soon as the comment is posted, there is zero idle cost between pull requests. When five coding agents push branches from their worktrees at the same time, five Boxes spin up in parallel, run their browser checks in isolation, post their screenshots to GitHub, and delete themselves in under a minute.</p>
+<h2>What a run records</h2>
+<p>Every call in <code>box-stages.ts</code> records the command time and agent spend that <code>Run.cost</code> returns, plus the token counts from <code>tab.act()</code>. The comment adds those up into one cost line for the run, next to the screenshots and the recording.</p>
+<p>Because <code>box.delete()</code> runs inside the <code>finally</code> block as soon as the comment is posted, nothing keeps running between pull requests. When several coding agents push branches from their worktrees at the same time, each push gets its own Box, runs its browser checks in isolation, posts its screenshots, and deletes itself.</p>
+<p>The full source, the GitHub Actions workflow, and every artifact in this post are in <a href="https://github.com/leoisadev1/box-pr-visual-tester"><code>leoisadev1/box-pr-visual-tester</code></a>.</p>
 
 </article>
 <p class="note">Preview of <code>blog-post.mdx</code> for slug <code>visual-qa-pull-requests-upstash-box-browser</code>. Images and video load from <code>./artifacts/</code>.</p>

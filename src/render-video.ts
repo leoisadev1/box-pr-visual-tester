@@ -5,7 +5,8 @@
 //   tsx src/render-video.ts                 full render
 //   tsx src/render-video.ts --stills 3,9.5  PNG previews of single moments into /tmp
 import { chromium } from "playwright-core";
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { copyFile, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -104,6 +105,14 @@ function synthesize(cues: Cue[]): Buffer {
 const stillsArg = process.argv.indexOf("--stills");
 const stills = stillsArg > -1 ? (process.argv[stillsArg + 1] ?? "").split(",").map(Number) : null;
 
+// Playwright's Chromium has no H.264 decoder, so the page plays a VP9 copy of the real recording
+// with a keyframe on every frame, which lets each video frame seek exactly.
+const webm = join(ROOT, "video", "recording.webm");
+if (!existsSync(webm)) {
+  execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-i", join(ROOT, "artifacts/pr-1/recording.mp4"),
+    "-c:v", "libvpx-vp9", "-b:v", "0", "-crf", "24", "-g", "1", "-row-mt", "1", "-an", webm]);
+}
+
 const server = await serveDirectory({ root: ROOT, host: HOST, port: PORT });
 const browser = await chromium.launch();
 try {
@@ -114,7 +123,7 @@ try {
   await page.goto(`http://${HOST}:${PORT}/video/index.html`);
   await page.waitForSelector("body[data-ready='1']", { timeout: 30_000 });
   const setTime = (t: number) =>
-    page.evaluate((time) => (window as unknown as { __setTime: (t: number) => void }).__setTime(time), t);
+    page.evaluate((time) => (window as unknown as { __setTime: (t: number) => Promise<void> }).__setTime(time), t);
 
   if (stills) {
     for (const t of stills) {

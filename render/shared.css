@@ -34,8 +34,6 @@ code, .mono { font-family: var(--mono); }
 code { font-size: .86em; padding: .12em .4em; border-radius: 6px; background: rgb(129 139 152 / .14); }
 
 .avatar { border-radius: 50%; display: block; object-fit: cover; box-shadow: 0 0 0 1px rgb(31 35 40 / .12); }
-.bot-avatar { border-radius: 8px; display: grid; place-items: center; background: linear-gradient(140deg, #00d394, #00a372); box-shadow: 0 0 0 1px rgb(0 0 0 / .08); }
-.bot-avatar svg { width: 58%; height: 58%; }
 .pill { display: inline-flex; align-items: center; gap: .35em; padding: .18em .62em; border-radius: 999px; font-weight: 600; font-size: .8em; line-height: 1.4; border: 1px solid transparent; white-space: nowrap; }
 .pill.open { background: #1f883d; color: #fff; }
 .pill.bot { background: transparent; color: var(--muted); border-color: var(--border); font-weight: 500; padding: 0 .5em; font-size: .72em; }

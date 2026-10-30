@@ -14,9 +14,11 @@ I wanted every pull request on GitHub to get that before-and-after browser check
 
 ![Pull request #1 on GitHub showing the two-line layout diff in app/billing/index.html](./artifacts/01-hero-pr-overview.png)
 
-Here is a 28-second recording of a full run against [PR #1 in `leoisadev1/box-pr-visual-tester`](https://github.com/leoisadev1/box-pr-visual-tester/pull/1):
+Here is a 28-second walkthrough of the flow on [PR #1 in `leoisadev1/box-pr-visual-tester`](https://github.com/leoisadev1/box-pr-visual-tester/pull/1):
 
 <video src="./artifacts/box-pr-tester-demo.mp4" controls muted playsInline />
+
+The recording, screenshots, and pixel measurements in the video are the real ones from PR #1. The box ID, snapshot ID, restore time, and cost in it are example values, and the job log shows what box mode prints.
 
 The full source code, GitHub Actions workflow, and captured artifacts are in [`leoisadev1/box-pr-visual-tester`](https://github.com/leoisadev1/box-pr-visual-tester).
 
@@ -26,13 +28,13 @@ The full source code, GitHub Actions workflow, and captured artifacts are in [`l
 
 Enabling `browser: true` on `Box.create` or `Box.fromSnapshot` gives you five ways to drive Chromium and inspect a live page. All of them operate on the same browser instance inside the Box, so you can use one or combine them in a single test run.
 
-| Capability | SDK call | Best for |
-| --- | --- | --- |
-| AI actions and zero-LLM replay | `tab.act("...")` and `tab.observe("...")` | Clicking buttons or stepping through flows described in plain English, then replaying the resolved selector without an LLM |
-| Schema-validated extraction | `tab.extract(prompt, zodSchema)` and `tab.content()` | Asking a DOM-aware agent structured questions about the rendered page and getting back typed Zod data |
-| Screenshots, video, and live view | `tab.screenshot()`, `box.browser.recordings.start()`, and `tab.liveViewUrl()` | Capturing viewport or full-page PNGs, recording MP4 session videos, or streaming a live view URL |
-| Playwright or Puppeteer over CDP | `await box.browser.cdpUrl()` | Attaching `playwright-core` to the same tab for exact viewport sizing and `getBoundingClientRect()` layout math |
-| In-box coding agent | `box.agent.run({ prompt, responseSchema })` | Running Claude Code, Codex, or OpenCode inside the Box with the `chrome-devtools` MCP wired in |
+| Capability                        | SDK call                                                                      | Best for                                                                                                                   |
+| --------------------------------- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| AI actions and zero-LLM replay    | `tab.act("...")` and `tab.observe("...")`                                     | Clicking buttons or stepping through flows described in plain English, then replaying the resolved selector without an LLM |
+| Schema-validated extraction       | `tab.extract(prompt, zodSchema)` and `tab.content()`                          | Asking a DOM-aware agent structured questions about the rendered page and getting back typed Zod data                      |
+| Screenshots, video, and live view | `tab.screenshot()`, `box.browser.recordings.start()`, and `tab.liveViewUrl()` | Capturing viewport or full-page PNGs, recording MP4 session videos, or streaming a live view URL                           |
+| Playwright or Puppeteer over CDP  | `await box.browser.cdpUrl()`                                                  | Attaching `playwright-core` to the same tab for exact viewport sizing and `getBoundingClientRect()` layout math            |
+| In-box coding agent               | `box.agent.run({ prompt, responseSchema })`                                   | Running Claude Code, Codex, or OpenCode inside the Box next to the browser                                                 |
 
 Here is how those calls work together on a single tab:
 
@@ -89,13 +91,15 @@ In our pull request tester, `tab.act()` opens the checkout modal, Playwright res
 
 On the `/billing/` page of our demo app, clicking **Upgrade Plan** opens the `#checkout` modal. On `main`, the `#checkout` container uses `fixed inset-x-4 top-12` without a height cap or scroll container, and the footer uses a static `<div class="modal-foot">`.
 
-On a `1440x900` desktop monitor, the modal fits with room to spare on both branches:
+On a `390x844` mobile viewport, the modal overflows the screen on `main` and pushes the **Confirm upgrade** button below the bottom edge. Here is the review the tester posted on [PR #1](https://github.com/leoisadev1/box-pr-visual-tester/pull/1#issuecomment-6477831685), with a recording of the flow on both branches and the mobile before-and-after screenshots. `main` is on the left:
 
-![Desktop 1440x900 comparison showing both main and PR #1 passing with 100% button visibility](./artifacts/05-box-browser-desktop-comparison.png)
+![The visual review comment on PR #1: a side-by-side recording of the checkout flow on main and PR #1, then the mobile before-and-after screenshots](./artifacts/08-github-pr-comment-live.png)
 
-On a `390x844` mobile viewport, the modal overflows the screen on `main` and pushes the **Confirm upgrade** button below the bottom edge:
+On a `1440x900` desktop monitor, the modal fits with room to spare on both branches, which is why this bug survives a review on a laptop. The same comment continues with the desktop screenshots and the measured numbers:
 
-![Mobile 390x844 comparison showing the clipped Confirm upgrade button on main versus the visible button on PR #1](./artifacts/06-box-browser-mobile-regression.png)
+![The rest of the comment: desktop before-and-after screenshots where both branches pass, the verdict, and the DOM metrics table](./artifacts/09-github-pr-comment-details.png)
+
+That run used the repo's local Chromium mode, because the demo repo has no Box key configured yet. It runs the same probe in Chromium on the machine instead of in Box Browser, so the comment carries a rule-based verdict and no cost line. A run inside a Box adds Claude Code's verdict and the run cost.
 
 On `main` at `390x844`, `getBoundingClientRect()` on `#confirm` reports `top: 861.5px` and `bottom: 910px`. The button ends `66px` below the `844px` fold with `0%` of the button visible on screen, so attempting to submit the form times out.
 
@@ -157,11 +161,13 @@ npx tsx src/create-snapshot.ts https://github.com/leoisadev1/box-pr-visual-teste
 
 ![Terminal output of create-snapshot.ts creating a small Node box with browser: true and printing BOX_SNAPSHOT_ID](./artifacts/03-snapshot-creation-terminal.png)
 
+This is the format the script prints. The box ID, snapshot ID, size, and timings in it are examples; yours will differ.
+
 ---
 
 ## Step 2. Restore the Box and boot `main` and the PR side by side
 
-When a pull request opens or updates, `Box.fromSnapshot()` restores a fresh container from that snapshot. Inside the Box, we clone the base branch into `/workspace/box/main` on port `3000` and the pull request branch into `/workspace/box/pr` on port `3001`. Both checkouts pin the exact commit SHAs from the pull request event.
+When a pull request opens or updates, `Box.fromSnapshot()` restores a fresh container from that snapshot. Inside the Box, we clone the base branch into `/workspace/home/main` on port `3000` and the pull request branch into `/workspace/home/pr` on port `3001`. Both checkouts pin the exact commit SHAs from the pull request event.
 
 ```typescript
 // src/box-stages.ts
@@ -194,14 +200,18 @@ for (const branch of BRANCHES) {
   });
 
   await box.cd(branch.folder);
-  await box.exec.command(`git fetch --depth 1 origin ${sha} && git checkout --detach ${sha}`);
+  await box.exec.command(
+    `git fetch --depth 1 origin ${sha} && git checkout --detach ${sha}`,
+  );
   await box.exec.command("npm ci --prefer-offline --no-audit --no-fund");
-  await box.exec.command(`PORT=${branch.port} nohup npm start > /tmp/${branch.folder}.log 2>&1 &`);
+  await box.exec.command(
+    `PORT=${branch.port} nohup npm start > /tmp/${branch.folder}.log 2>&1 &`,
+  );
   await box.cd("..");
 }
 ```
 
-Running both branches inside the same Box eliminates clock skew, font differences, and network jitter between the baseline and the pull request preview.
+Running both branches inside the same Box means the baseline and the pull request render with the same fonts, the same Chromium, and the same machine.
 
 ---
 
@@ -220,13 +230,22 @@ export const AgentRead = z.object({
   validationMessage: z.string().nullable(),
 });
 
-async function inspectBranch(box: Box, browser: Browser, url: string, label: string) {
+async function inspectBranch(
+  box: Box,
+  browser: Browser,
+  url: string,
+  label: string,
+) {
   const tab = await box.browser.tab.create(url, { waitUntil: "networkidle" });
-  const page = browser.contexts().flatMap((c) => c.pages()).find((p) => p.url().startsWith(url))!;
+  const page = browser
+    .contexts()
+    .flatMap((c) => c.pages())
+    .find((p) => p.url().startsWith(url))!;
 
   const openCheckout = async () => {
     const action = await tab.act("Click the Upgrade Plan button");
-    if (!action.success) await page.getByRole("button", { name: "Upgrade Plan" }).click();
+    if (!action.success)
+      await page.getByRole("button", { name: "Upgrade Plan" }).click();
   };
 
   const shots: Record<string, Uint8Array> = {};
@@ -258,7 +277,7 @@ async function inspectBranch(box: Box, browser: Browser, url: string, label: str
 }
 ```
 
-Here is the terminal output showing both branches serving on `:3000` and `:3001` and the four viewport checks running against pinned SHAs `846a88c` and `2a94f48`:
+Here is the step runner from the repo running against PR #1, with both branches serving on `:3000` and `:3001` and the four viewport checks running against pinned SHAs `846a88c` and `2a94f48`. The demo repo has no Box key configured yet, so this run used the repo's local Chromium mode: the same probe, run in Chromium on the machine instead of in Box Browser. The recording and screenshots in the comment above come from the same run.
 
 ![Terminal output showing main on port 3000 and PR #1 on port 3001 with mobile and desktop inspection results](./artifacts/04-dual-server-boot-terminal.png)
 
@@ -277,11 +296,19 @@ export const VerdictSchema = z.object({
   status: z.enum(["pass", "fail"]),
   headline: z.string().describe("One sentence, under 90 characters."),
   summary: z.string().describe("Two or three sentences a reviewer can act on."),
-  regressions: z.array(z.string()).describe("Problems the PR introduces. Empty when there are none."),
+  regressions: z
+    .array(z.string())
+    .describe("Problems the PR introduces. Empty when there are none."),
 });
 
 const run = await box.agent.run({
-  prompt: buildVerdictPrompt({ prNumber: pr.number, title: pr.title, before, after, agentRead }),
+  prompt: buildVerdictPrompt({
+    prNumber: pr.number,
+    title: pr.title,
+    before,
+    after,
+    agentRead,
+  }),
   responseSchema: VerdictSchema,
   timeout: 120_000,
 });
@@ -311,13 +338,13 @@ on:
 
 jobs:
   visual-qa:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       pull-requests: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -331,24 +358,18 @@ jobs:
         run: npx tsx src/pr-visual-tester.ts run "${{ github.repository }}" "${{ github.event.pull_request.number }}"
 ```
 
-![GitHub Actions workflow run for PR #1 completing in 50 seconds](./artifacts/07-github-actions-workflow-run.png)
+The workflow in the repo splits this into separate steps and falls back to local Chromium when the Box secrets are missing, so pull requests from forks still get a check. Here is its run on PR #1. "Restore Box from snapshot" is skipped because the demo repo has no Box secrets yet:
 
-Here is the live comment posted on [`leoisadev1/box-pr-visual-tester#1`](https://github.com/leoisadev1/box-pr-visual-tester/pull/1#issuecomment-4342322585):
+![GitHub Actions workflow run for PR #1 with every step green and the Box restore step skipped](./artifacts/07-github-actions-workflow-run.png)
 
-![Live GitHub comment on PR #1 showing the before-and-after mobile screenshots, verdict, and DOM metrics table](./artifacts/08-github-pr-comment-live.png)
+The comment shown earlier is that output, live on [`leoisadev1/box-pr-visual-tester#1`](https://github.com/leoisadev1/box-pr-visual-tester/pull/1#issuecomment-6477831685). The recording sits in it as a GIF next to a link to the MP4, because GitHub only plays inline video that was uploaded through its own editor and strips `<video>` tags that point anywhere else. In box mode the recording comes from `box.browser.recordings.start()`; in local mode the tester records the mobile flow on both branches with Playwright and stitches the two clips side by side.
 
 ---
 
-## What a single PR run costs
+## What a run records
 
-Every call in `box-stages.ts` records the wall-clock command time and agent spend returned by `Run.cost`, plus the token count from `tab.act()` and `tab.extract()`.
+Every call in `box-stages.ts` records the command time and agent spend that `Run.cost` returns, plus the token counts from `tab.act()`. The comment adds those up into one cost line for the run, next to the screenshots and the recording.
 
-| Stage | Pricing basis | Cost per PR run |
-| --- | --- | --- |
-| `Box.fromSnapshot` restore and dual-branch boot | Active CPU only at `$0.10` per CPU-hour on `small` | `~$0.0004` for `15s` of active CPU |
-| Box Browser inspection across both branches | `tab.act` and `tab.extract` token usage plus local CDP | `~$0.01` for `~3,400` browser tokens |
-| `box.agent.run` with `ClaudeCode.Sonnet_4_5` | Structured Zod verdict from the measured DOM reports | `~$0.025` to `$0.05` per verdict |
-| Upstash Blob upload + GitHub comment upsert | 4 annotated PNGs stored with immutable caching | `< $0.0001` |
-| **Total per PR push** | **`box.delete()` runs inside `finally`** | **`~$0.035` to `$0.06` total** |
+Because `box.delete()` runs inside the `finally` block as soon as the comment is posted, nothing keeps running between pull requests. When several coding agents push branches from their worktrees at the same time, each push gets its own Box, runs its browser checks in isolation, posts its screenshots, and deletes itself.
 
-Because `box.delete()` runs inside the `finally` block as soon as the comment is posted, there is zero idle cost between pull requests. When five coding agents push branches from their worktrees at the same time, five Boxes spin up in parallel, run their browser checks in isolation, post their screenshots to GitHub, and delete themselves in under a minute.
+The full source, the GitHub Actions workflow, and every artifact in this post are in [`leoisadev1/box-pr-visual-tester`](https://github.com/leoisadev1/box-pr-visual-tester).

@@ -21,6 +21,7 @@ See it on a real pull request: [#1 Fix mobile overflow on billing checkout modal
 | `src/pr-visual-tester.ts` | One-process runner: `run <owner/repo> <pr>` publishes, `--out <dir>` saves locally. |
 | `src/ci.ts` | The same stages as separate steps, for GitHub Actions or a terminal. |
 | `src/webhook.ts` | HMAC-verified GitHub webhook server that runs one check per PR at a time. |
+| `src/recording.ts` | Records the mobile flow on both branches side by side (MP4 + GIF) for the PR comment. Box mode downloads the Box Browser session recording instead. |
 | `src/local-inspect.ts` | The same probe in a local Chromium, used when no Box key is set. |
 | `.github/workflows/visual-qa.yml` | The Actions version. Box mode with secrets, local Chromium mode without. |
 | `fixtures/`, `render/`, `video/` | Inputs for the blog stills and the companion video. |

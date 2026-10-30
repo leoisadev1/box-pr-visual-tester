@@ -62,7 +62,7 @@ const marked = new Marked({
 });
 
 const article = await marked.parse(
-  body.replace(VIDEO_TAG, '<figure class="video"><video src="$1" controls muted playsinline preload="metadata" poster="./artifacts/verify-frames/frame-17.00.png"></video></figure>'),
+  body.replace(VIDEO_TAG, '<figure class="video"><video src="$1" controls muted playsinline preload="metadata" poster="./artifacts/stills/pr-comment-recording-playing.png"></video></figure>'),
 );
 const date = new Date(`${meta.date}T12:00:00Z`).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 const words = body.split(/\s+/).length;
